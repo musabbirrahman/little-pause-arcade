@@ -34,4 +34,4 @@ Upload all files in this folder together: `index.html`, `sw.js`, `manifest.webma
 
 ## Link previews
 
-`index.html` has link-preview (Open Graph) tags near the top, and `og-image.png` is the preview picture. Replace both `YOUR-USERNAME.github.io/YOUR-REPO` addresses with your real site address (the link you share), otherwise WhatsApp and Telegram won't show the picture.
+`index.html` has link-preview (Open Graph) tags near the top, and `og-image.png` is the preview picture. They point to `https://musabbirrahman.github.io/little-pause-arcade/`. If your site address ever changes, update those three addresses.
