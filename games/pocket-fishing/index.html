@@ -31,14 +31,14 @@ canvas{width:100%;height:360px;display:block;border-radius:16px;border:2px solid
 .slot.off .em{filter:grayscale(1) brightness(.3);opacity:.5}
 .slot.off{color:var(--mute)}
 button.sm{font:inherit;background:none;border:1px solid var(--line);color:var(--mute);border-radius:8px;padding:2px 8px;cursor:pointer}
-#baits{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px;font-size:13px;color:var(--mute)}#baits button{font:inherit;padding:4px 10px;border-radius:16px;border:2px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}#baits button.on{border-color:var(--acc)}.jr{display:flex;gap:10px;padding:8px 0;border-top:1px solid var(--line);font-size:13px}.jr .em{font-size:26px}#bm,#sm,#cm{min-height:18px;font-size:13px;color:var(--acc);margin:4px 0}.off{opacity:.5}*{-webkit-tap-highlight-color:transparent}body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}canvas,button{outline:none}button:focus-visible{outline:2px solid var(--acc)}#toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--card);border:2px solid var(--acc);border-radius:14px;padding:8px 14px;font-size:14px;max-width:90%;text-align:center;opacity:0;transition:opacity .4s;pointer-events:none;z-index:9}details{margin:6px 0}summary{cursor:pointer;font-size:14px;padding:4px 0}textarea,input{-webkit-user-select:text;user-select:text}</style>
+#baits{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px;font-size:13px;color:var(--mute)}#baits button{font:inherit;padding:4px 10px;border-radius:16px;border:2px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}#baits button.on{border-color:var(--acc)}.jr{display:flex;gap:10px;padding:8px 0;border-top:1px solid var(--line);font-size:13px}.jr .em{font-size:26px}#bm,#sm,#cm{min-height:18px;font-size:13px;color:var(--acc);margin:4px 0}.off{opacity:.5}*{-webkit-tap-highlight-color:transparent}body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}canvas,button{outline:none}button:focus-visible{outline:2px solid var(--acc)}#toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--card);border:2px solid var(--acc);border-radius:14px;padding:8px 14px;font-size:14px;max-width:90%;text-align:center;opacity:0;transition:opacity .4s;pointer-events:none;z-index:9}details{margin:6px 0}summary{cursor:pointer;font-size:14px;padding:4px 0}textarea,input{-webkit-user-select:text;user-select:text}#hud{flex-wrap:wrap;gap:6px}select{font:inherit;font-size:12px;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:2px}</style>
 </head>
 <body>
 <main>
 <h1>🎣 Pocket Fishing</h1>
 <p class="sub">Tap where you want to cast (or Space). Pick a bait: fish drift toward what they like. Turn sound on for nature ambience. When "!" appears, tap to reel in. Some fish only bite by day or night, and rain makes them hungrier.</p>
 <div id="tabs"></div>
-<div id="hud"><span id="clock"></span><span id="wx"></span><span><button class="sm" id="snd">🔇 Sound off</button> <button class="sm" id="mus">🎵 Music off</button> <input type="range" id="vol" min="0" max="100" value="40" style="width:70px;vertical-align:middle"></span></div>
+<div id="hud"><span id="clock"></span><span id="wx"></span><span><button class="sm" id="snd">🔇 Sound off</button> <button class="sm" id="mus">🎵 Music off</button> <input type="range" id="vol" min="0" max="100" value="40" style="width:70px;vertical-align:middle"> <select id="seas"><option value="auto">Season: auto</option><option value="sp">🌸 Spring</option><option value="su">☀️ Summer</option><option value="au">🍂 Autumn</option><option value="wi">⛄ Winter</option></select></span></div>
 <canvas id="c"></canvas>
 <div id="baits"></div><div id="bm"></div><div id="msg">Tap to cast your line.</div>
 <div class="card">
@@ -130,7 +130,7 @@ const phase=()=>sun<-.05?'night':(sun<.25?(day<.5?'dawn':'dusk'):'day');
 function splash(x,y){for(let i=0;i<14;i++)parts.push({x,y,vx:(Math.random()-.5)*120,vy:-80-Math.random()*160,l:1})}
 function bobber(x,y){ctx.fillStyle='#e8503a';ctx.beginPath();ctx.arc(x,y,7,Math.PI,0);ctx.fill();ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(x,y,7,0,Math.PI);ctx.fill()}
 function landCatch(f){const p=PONDS[S.pond],kk=key(p,f);S.got[kk]=(S.got[kk]||0)+1;
- const sz=Math.round(6+60/Math.sqrt(f.w)*(.5+Math.random()*.6)),j=S.j[f.n]||(S.j[f.n]={cnt:0,best:0});j.cnt++;if(sz>j.best)j.best=sz;const cn=f.n==='Old Boot'?1:Math.round(3+100/(f.w+3));S.coins=(S.coins||0)+cn;S.earned=(S.earned||0)+cn;S.fl=S.fl||{};const wn=PONDS[S.pond].hill==='f'&&wxName==='Rain'?'Snow':wxName;S.fl[phase()]=1;S.fl[wn.toLowerCase()]=1;
+ const sz=Math.round(6+60/Math.sqrt(f.w)*(.5+Math.random()*.6)),j=S.j[f.n]||(S.j[f.n]={cnt:0,best:0});j.cnt++;if(sz>j.best)j.best=sz;const cn=f.n==='Old Boot'?1:Math.round(3+100/(f.w+3));S.coins=(S.coins||0)+cn;S.earned=(S.earned||0)+cn;S.fl=S.fl||{};const wn=PONDS[S.pond].hill==='f'&&wxName==='Rain'?'Snow':wxName;S.fl[phase()]=1;S.fl[wn.toLowerCase()]=1;S.fl['s_'+seas()]=1;
  if(!j.first)j.first={p:p.n,when:phase(),wx:wn,bait:S.bait};save();ui();state='idle';hookF=null;fl=null;
  tone(520,.15,'triangle');setTimeout(()=>tone(780,.3,'triangle'),130);splash(W*.17,water());
  msg.textContent=(f.n==='Old Boot'?'An Old Boot. Well, it still counts.':(f.x?'★ Unique catch! ':f.w<=3?'Rare catch! ':'You caught a ')+f.n+'!')+' '+f.e+' '+sz+' cm · +'+cn+' 🪙'}
@@ -160,6 +160,16 @@ const ACH=[
 {id:'a21',e:'🦄',n:'Lucky Day',d:'Catch a very rare fish',t:()=>PONDS.some(p=>p.fish.some(f=>f.w<=1.5&&S.got[key(p,f)]))}];
 ACH.push({id:'a22',e:'✨',n:'Pond Legend',d:'Catch a ★ unique fish',t:()=>PONDS.some(p=>p.fish.some(f=>f.x&&S.got[key(p,f)]))},{id:'a23',e:'👑',n:'All Legends',d:'Catch every ★ unique fish',t:()=>PONDS.every(p=>p.fish.filter(f=>f.x).every(f=>S.got[key(p,f)]))});
 ACH.push({id:'a24',e:'🏡',n:'Cozy Dock',d:'Place 3 dock decorations',t:()=>Object.keys(S.deco||{}).length>=3},{id:'a25',e:'🎀',n:'Dream Dock',d:'Place every dock decoration',t:()=>Object.keys(S.deco||{}).length>=5});
+ACH.push({id:'a26',e:'🍃',n:'Four Seasons',d:'Catch a fish in spring, summer, autumn and winter',t:()=>['sp','su','au','wi'].every(q=>S.fl['s_'+q])});
+const SE={sp:'🌸',su:'☀️',au:'🍂',wi:'⛄'};
+function seas(){const o=S.season||'auto';if(o!=='auto')return o;const m=new Date().getMonth();return m>=2&&m<=4?'sp':m>=5&&m<=7?'su':m>=8&&m<=10?'au':'wi'}
+let sf=[];
+function seasonFx(dt,wl){const q=seas(),h=PONDS[S.pond].hill;ctx.fillStyle={sp:'rgba(255,190,220,.05)',su:'rgba(255,230,120,.04)',au:'rgba(255,140,40,.09)',wi:'rgba(220,235,255,.1)'}[q];ctx.fillRect(0,0,W,wl);
+ if(h==='f'||q==='su'||(h==='s'&&q!=='wi'))return;
+ while(sf.length<26)sf.push({x:Math.random()*W,y:Math.random()*H,v:18+Math.random()*22,ph:Math.random()*9,s:2+Math.random()*2});
+ const w=q==='wi';sf.forEach(p=>{p.y+=p.v*dt*(w?.8:1);p.x+=Math.sin(t*.8+p.ph)*20*dt+(w?0:8*dt);if(p.y>H+5){p.y=-5;p.x=Math.random()*W}
+  ctx.fillStyle=q==='sp'?'rgba(255,183,205,.9)':w?'rgba(255,255,255,.85)':['#e0702d','#c9482b','#e8b030'][Math.floor(p.ph)%3];
+  ctx.beginPath();ctx.ellipse(p.x,p.y,p.s*(w?.6:1.3),p.s*(w?.6:.8),w?0:p.ph+t,0,7);ctx.fill()})}
 let tq=[],tb=0;
 function toast(x){tq.push(x);if(!tb)nextToast()}
 function nextToast(){const e=document.getElementById('toast'),x=tq.shift();if(!x){tb=0;e.style.opacity=0;return}tb=1;e.textContent=x;e.style.opacity=1;setTimeout(nextToast,3400)}
@@ -402,6 +412,7 @@ function draw(dt){
   const sn=P.hill==='f';if(sn)ctx.fillStyle='rgba(255,255,255,.85)';drops.forEach(d=>{if(sn){d.y+=(28+d.v*.04)*dt;d.x+=Math.sin(t+d.v)*14*dt}else{d.y+=d.v*dt;d.x-=60*dt}if(d.y>H){d.y=-10;d.x=Math.random()*W+40}if(sn){ctx.moveTo(d.x+2,d.y);ctx.arc(d.x,d.y,2,0,7)}else{ctx.moveTo(d.x,d.y);ctx.lineTo(d.x+3,d.y-12)}});if(sn)ctx.fill();else ctx.stroke();
   // fog
   if(wx.fog>.02){g=ctx.createLinearGradient(0,wl*.4,0,wl+H*.2);const f=C(L([200,210,215],[40,48,60],1-k));g.addColorStop(0,C(L([200,210,215],[40,48,60],1-k),0));g.addColorStop(.6,C(L([200,210,215],[40,48,60],1-k),wx.fog*.65));g.addColorStop(1,C(L([200,210,215],[40,48,60],1-k),0));ctx.fillStyle=g;ctx.fillRect(0,wl*.4,W,H)}
+  seasonFx(dt,wl);
   // night tint
   ctx.fillStyle=`rgba(5,10,35,${(1-k)*.25})`;ctx.fillRect(0,0,W,H);
   if(catchT>0){catchT-=dt;ctx.font='64px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.globalAlpha=Math.min(1,catchT);ctx.fillText(catchEm,W/2,H*.3-(1.6-catchT)*30);ctx.globalAlpha=1;ctx.textAlign='start';ctx.textBaseline='bottom'}
@@ -409,7 +420,7 @@ function draw(dt){
 let hudT=0;
 function hud(){const h=day*24,hh=Math.floor(h),mm=Math.floor((h%1)*60);
   const ph=sun<-.05?'🌙 Night':(sun<.25?(day<.5?'🌅 Dawn':'🌇 Dusk'):'☀️ Day');
-  document.getElementById('clock').textContent=ph+' · '+String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0');
+  document.getElementById('clock').textContent=SE[seas()]+' '+ph+' · '+String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0');
   document.getElementById('wx').textContent=(PONDS[S.pond].hill==='f'&&wxName==='Rain')?'🌨 Snow':({Clear:'🌤',Cloudy:'☁️',Rain:'🌧',Fog:'🌫'})[wxName]+' '+wxName}
 document.getElementById('snd').onclick=function(){soundOn=!soundOn;if(soundOn)startAudio();if(ac&&ac.state==='suspended')ac.resume();this.textContent=soundOn?'🔊 Sound on':'🔇 Sound off';if(!soundOn&&nz){lapG.gain.value=0;rainG.gain.value=0;windG.gain.value=0}};
 const vol=document.getElementById('vol'),setVol=()=>{if(musG)musG.gain.value=(S.vol??40)/100*1.2};vol.value=S.vol??40;
@@ -419,6 +430,10 @@ const cd=document.getElementById('cd');
 document.getElementById('exp').onclick=()=>{const c=btoa(unescape(encodeURIComponent(JSON.stringify(S))));cd.value=c;cd.select();try{navigator.clipboard.writeText(c).then(()=>say('cm','✅ Save code copied.')).catch(()=>say('cm','The code is above. Select it and copy it.'))}catch(e){say('cm','The code is above. Select it and copy it.')}};
 document.getElementById('imp').onclick=()=>{try{const o=JSON.parse(decodeURIComponent(escape(atob(cd.value.trim()))));if(!o||typeof o.got!=='object'||typeof o.coins!=='number')throw 0;if(!confirm('Replace your current progress with this save?'))return;
  S=Object.assign({got:{},pond:0,j:{},bait:'none',coins:25,inv:{worm:5,bread:3},rod:0,fl:{},ach:{},earned:0,deco:{}},o);if(!PONDS[S.pond])S.pond=0;state='idle';save();newShadows();ui();say('cm','✅ Save loaded.')}catch(e){say('cm','That code did not look right. Please copy it again in full.')}};
+const sel=document.getElementById('seas');sel.value=S.season||'auto';sel.onchange=()=>{S.season=sel.value;save()};
+(function(){const d=new Date().toDateString();if(S.gift===d)return;S.gift=d;const tt=total();let m;
+ if(Math.random()<.4){const c=10+Math.floor(Math.random()*11);S.coins+=c;m='+'+c+' 🪙'}else{const ks=Object.keys(BAIT).filter(k=>k!=='none'&&tt>=BAIT[k].u),k=ks[Math.floor(Math.random()*ks.length)];S.inv[k]=(S.inv[k]||0)+2;m='2 '+BAIT[k].n+' '+BAIT[k].e}
+ save();setTimeout(()=>toast('🎁 A little welcome gift: '+m),1200)})();
 newShadows();ui();let last=performance.now();
 (function loop(n){const dt=Math.min((n-last)/1000,.1);last=n;draw(dt);ambient(dt);musicTick(dt);hudT+=dt;if(hudT>.5){hudT=0;hud()}requestAnimationFrame(loop)})(last);
 </script>
