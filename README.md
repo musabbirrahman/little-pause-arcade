@@ -14,11 +14,11 @@ A lightweight, static game shelf that works on GitHub Pages. The homepage is a s
 
 4. Save, then upload the site and the `games` folder to the same GitHub repository. Make sure GitHub Pages publishes from the folder containing `index.html`.
 
-Use a relative path for `url` so the game works on the published site. The player opens each game inside the site. Pocket Fishing is included in `games/pocket-fishing/` and Cloud Catch is a tiny working example. Remove either entry from `GAMES` if you do not want it listed.
+Use a relative path for `url` so the game works on the published site. The player opens each game inside the site. Pocket Fishing is included in `games/pocket-fishing/`, Pocket Astronomy (a learning game about real space) is in `games/pocket-astronomy/`, and Cloud Catch is a tiny working example. Remove either entry from `GAMES` if you do not want it listed.
 
 ## Categories and appearance
 
-Categories are collected from the games you list, so add any category name you like. Each card uses its `emoji`, `color`, and `duration` values. The page is responsive and has search, category filters, a game player overlay, and a share button.
+Categories are collected from the games you list, so add any category name you like. Games can use `scene:'pond'` (default), `'cloud'` or `'space'` to pick the card's thumbnail artwork. Each card uses its `emoji`, `color`, and `duration` values. The page is responsive and has search, category filters, a game player overlay, and a share button.
 
 The page loads its display fonts from Google Fonts; system fonts are used if those fonts are unavailable. Games themselves can be self-contained or load their own assets. The homepage includes optional creek, birdsong, soft rain, breeze, and cricket soundscapes; visitors choose one and turn it on themselves. The footer links to Musabbir Rahman's GitHub and LinkedIn profiles.
 
