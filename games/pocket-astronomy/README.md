@@ -14,7 +14,7 @@ A relaxing, single-file browser game where you pilot a telescope through real sp
   - **size compared with Earth**
   - **Why this sensor?** (why radio, infrared, X-ray or UV reveals this object)
   - **How we know** (spectroscopy, Kepler's third law, standard candles, the Event Horizon Telescope images)
-- **Sky guide (off by default, switch it on in the Mission quiz card):** 7 real constellations (Orion, Big Dipper, Cassiopeia, Southern Cross, Scorpius, Lyra, Cygnus) with 40 selectable stars. Tap a star, or centre it in the reticle and press **Study**, to read its spectral class, temperature and distance.
+- **Sky guide:** 7 real constellations (Orion, Big Dipper, Cassiopeia, Southern Cross, Scorpius, Lyra, Cygnus) with 40 selectable stars. Tap a star, or centre it in the reticle and press **Study**, to read its spectral class, temperature and distance.
 - **Mission quiz:** questions generated from what you have scanned and studied (which is farther, how long light takes to arrive, which star is hotter, which constellation).
 - **Photo mode:** save a shareable card of any object, with its picture and key data, as a PNG. On phones that support it, the share sheet opens.
 - **Generative ambient music** and sound effects, with a mute button that remembers your choice.
@@ -28,7 +28,6 @@ A relaxing, single-file browser game where you pilot a telescope through real sp
 3. **Equip:** some objects only show up in certain wavelengths. Buy sensor packs and switch between them to decode what you find.
 4. **Learn:** open the data pad to read the facts, then log it to your database.
 5. **Upgrade:** spend grants on better telescopes to reach deeper sectors.
-6. **Revisit:** the telescope shows its live coordinates (X, Y, Z) at the bottom of the view. In the Stellar Database, tap **📍 Locate** on any scanned object to jump the telescope straight to it.
 
 ### Sectors
 
