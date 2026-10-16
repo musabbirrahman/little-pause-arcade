@@ -78,7 +78,7 @@ html{-webkit-text-size-adjust:100%}body{touch-action:manipulation;overscroll-beh
 main{padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}
 textarea,input,select{font-size:16px}
 details.sub summary{color:var(--acc);cursor:pointer;font-weight:600;padding:4px 0;list-style:none}details.sub summary::before{content:"\25B8  "}details.sub[open] summary::before{content:"\25BE  "}
-#tracker-status{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#tracker-status{flex:1;min-width:0;line-height:1.35}
 #hud>span:last-child{display:flex;align-items:center;gap:10px;flex:none}
 #modal-overlay{position:fixed;z-index:1000}
 #modal{max-height:92dvh}
@@ -109,7 +109,7 @@ button.sm:active,#tabs button:active,#baits button:active,#m-close:active{transf
 <body>
 <main>
 <h1><span>🔭 Pocket Astronomy</span> <span style="font-size:14px; color:var(--mute); font-weight:normal;">Final Edition</span></h1>
-<details class="sub" id="how"><summary>How to play</summary><p style="margin:6px 0 0">1. Follow the compass. Scanned objects are ignored.<br>2. <b>Zoom (+/-)</b> or <b>Pinch</b> to focus on the target depth.<br>3. <b>Equip</b> the correct lens to decode the data coordinates.<br>4. Tap any star in the <b>Sky guide</b> to study it.</p></details>
+<details class="sub" id="how"><summary>How to play</summary><p style="margin:6px 0 0">1. Follow the compass. Scanned objects are ignored.<br>2. <b>Zoom (+/-)</b> or <b>Pinch</b> to focus on the target depth.<br>3. <b>Equip</b> the correct lens to decode the data coordinates.<br>4. Turn on the <b>Sky guide</b> (button in the Mission quiz card) and tap any star to study it.<br>5. In the <b>Stellar Database</b>, tap <b>📍 Locate</b> on a scanned object to aim the telescope at its coordinates.</p></details>
 <div id="tabs"></div>
 <div id="hud">
   <span id="tracker-status">STATUS: CALIBRATING...</span>
@@ -153,7 +153,7 @@ button.sm:active,#tabs button:active,#baits button:active,#m-close:active{transf
 </div>
 <div id="baits"></div>
 
-<div class="card"><h2><span>🎓 Mission quiz</span><span><button class="sm" id="quiz-btn">Start</button> <button class="sm" id="sky-btn">Sky guide: on</button></span></h2><div id="quiz-box" style="font-size:14px;line-height:1.6;color:#b9c0d4">Quiz yourself on what you have scanned in this sector and the Sky guide stars you have studied: +10 grants per correct answer. The Sky guide draws real constellations: tap any star, or centre one in the reticle and press Study star, to read about it.</div><div style="font-size:13px;color:#8791a8;margin-top:10px"><b style="color:#d9a441">How grants work:</b> first discovery of each object, +25% survey bonus for completing a sector, follow-up observations (+10% of an object\u2019s value, once every 2 minutes per object, with the right sensor), quiz answers, and finishing constellations.</div><div id="sky-stat" style="font-size:13px;color:#8791a8;margin-top:10px"></div></div>
+<div class="card"><h2><span>🎓 Mission quiz</span><span><button class="sm" id="quiz-btn">Start</button> <button class="sm" id="sky-btn">Sky guide: off</button></span></h2><div id="quiz-box" style="font-size:14px;line-height:1.6;color:#b9c0d4">Quiz yourself on what you have scanned in this sector and the Sky guide stars you have studied: +10 grants per correct answer. Turn on the Sky guide to draw real constellations, then tap any star, or centre one in the reticle and press Study star, to read about it.</div><div style="font-size:13px;color:#8791a8;margin-top:10px"><b style="color:#d9a441">How grants work:</b> first discovery of each object, +25% survey bonus for completing a sector, follow-up observations (+10% of an object\u2019s value, once every 2 minutes per object, with the right sensor), quiz answers, and finishing constellations.</div><div id="sky-stat" style="font-size:13px;color:#8791a8;margin-top:10px"></div></div>
 <div class="card">
 <h2><span>Stellar Database <span id="cnt"></span></span></h2>
 <div id="books"></div>
@@ -347,7 +347,7 @@ function quiz(){const sec=SECTORS[S.sec],box=document.getElementById('quiz-box')
   box.querySelectorAll('button').forEach(b=>b.onclick=()=>{const ok=+b.dataset.k===q.c;if(ok)sc++;box.innerHTML=`<p><b style="color:${ok?'var(--scan)':'var(--bad)'}">${ok?'Correct.':'Not quite.'}</b> ${q.e}</p><button class="sm" id="qn">${i+1<qs.length?'Next':'Finish'}</button>`;document.getElementById('qn').onclick=()=>{i++;show()};});};
  show();}
 // ---- real constellations: every star is selectable (tap it, or centre it in the reticle)
-let skyBtn=null,showSky=true,skyLock=null,SKYPOS=[],SKYW=1,SKYH=1;
+let skyBtn=null,showSky=(()=>{try{return localStorage.getItem('paSky')==='1'}catch(e){return false}})(),skyLock=null,SKYPOS=[],SKYW=1,SKYH=1;
 const SKY=[{n:'Orion',x:.2,y:.25,l:[[0,2],[1,4],[2,3],[3,4],[2,5],[4,6],[0,1]],s:[[-30,-60,'Betelgeuse',550,3600,'M'],[30,-55,'Bellatrix',250,21800,'B'],[-12,0,'Alnitak',1260,29500,'O'],[0,2,'Alnilam',2000,25000,'B'],[12,4,'Mintaka',1200,29500,'O'],[-22,60,'Saiph',650,26500,'B'],[32,58,'Rigel',860,12100,'B']]},
 {n:'Big Dipper',x:-.28,y:-.2,l:[[0,1],[1,2],[2,3],[3,0],[3,4],[4,5],[5,6]],s:[[0,0,'Dubhe',123,4500,'K'],[-4,26,'Merak',80,9400,'A'],[24,30,'Phecda',84,9400,'A'],[26,6,'Megrez',81,9500,'A'],[50,0,'Alioth',83,9400,'A'],[74,-8,'Mizar',83,9000,'A'],[100,6,'Alkaid',104,15000,'B']]},
 {n:'Cassiopeia',x:.3,y:-.3,l:[[0,1],[1,2],[2,3],[3,4]],s:[[0,0,'Caph',54,7000,'F'],[14,22,'Schedar',228,4500,'K'],[30,10,'Gamma Cassiopeiae',610,25000,'B'],[48,28,'Ruchbah',99,8000,'A'],[62,6,'Segin',440,15000,'B']]},
@@ -422,6 +422,13 @@ function photoMode(){const a=curA;if(!a)return;const W=1080,H=1350,c=document.cr
  const name='pocket-astronomy-'+f.n.replace(/[^a-z0-9]+/gi,'-').toLowerCase()+'.png';
  c.toBlob(b=>{if(!b)return;const file=new File([b],name,{type:'image/png'}),dl=()=>{const u=URL.createObjectURL(b),l=document.createElement('a');l.href=u;l.download=name;document.body.appendChild(l);l.click();l.remove();setTimeout(()=>URL.revokeObjectURL(u),2000);toast('Photo saved');};
   if(navigator.canShare&&/Mobi|Android/i.test(navigator.userAgent)&&navigator.canShare({files:[file]}))navigator.share({files:[file],title:f.n}).catch(dl);else dl();},'image/png');}
+
+let locHud=null;
+function locate(si,name){const p=SECTORS[si],f=p&&p.objs.find(o=>o.n===name);if(!f)return;const ed=getEntityData(p,f);
+ if(S.sec!==si){S.sec=si;save();ui();generateAnomalies();}
+ const mz=SCOPE[S.scope||0].maxZ,z=Math.max(1,Math.min(ed.z,mz));tcx=cx=ed.x;tcy=cy=ed.y;tcz=cz=z;
+ toast(ed.z>mz?`Aimed at ${f.n}. Needs a stronger scope to focus (Z:${ed.z})`:`Telescope aimed at ${f.n} (X:${ed.x} Y:${ed.y} Z:${ed.z})`);
+ document.getElementById('canvas-container').scrollIntoView({behavior:'smooth',block:'center'});}
 
 const spaceStars = [], spaceNebulae = [], comets = [];
 for(let i=0; i<(innerWidth<700?900:1800); i++) spaceStars.push({x:(Math.random()-0.5)*4000, y:(Math.random()-0.5)*4000, z:Math.random()*2500+1, r:Math.random()*1.5+0.5, c:['#9bb0ff','#cad8ff','#fff4ea','#ffe9c4','#ffd2a1','#ffcc6f'][Math.floor(Math.random()*4)]});
@@ -744,6 +751,7 @@ function draw(dt){
   t+=dt;
   
   zoomHud.textContent = `Zoom: ${cz.toFixed(1)}x`;
+  if(locHud) locHud.textContent = `LOC  X:${Math.round(cx)}  Y:${Math.round(cy)}  Z:${Math.round(cz)}`;
 
   const secHue = SECTORS[S.sec].bgHue;
   let bg = ctx.createLinearGradient(0,0,0,H);
@@ -943,14 +951,14 @@ function shop(){const el=document.getElementById('shop'), tt=uniqueTotal();
     save(); ui();
  })}
 
-function guide(){const tt=uniqueTotal(),kk=SECTORS.map(p=>tt>=p.u).join(),g=document.getElementById('guide');if(g._k===kk)return;g._k=kk;
- g.innerHTML=SECTORS.map(p=>tt<p.u?`<div class="jr"><span class="em">🔒</span><div>${p.em} ${p.n}<br>Unlocks after ${p.u} discoveries</div></div>`:`<details><summary><b>${p.em} ${p.n}</b></summary>`+p.objs.map(f=>{
+function guide(){const tt=uniqueTotal(),kk=tt+'|'+SECTORS.map(p=>tt>=p.u).join(),g=document.getElementById('guide');if(g._k===kk)return;g._k=kk;const was=[...g.querySelectorAll('details')].map(d=>d.open);
+ g.innerHTML=SECTORS.map((p,si)=>tt<p.u?`<div class="jr"><span class="em">🔒</span><div>${p.em} ${p.n}<br>Unlocks after ${p.u} discoveries</div></div>`:`<details><summary><b>${p.em} ${p.n}</b></summary>`+p.objs.map(f=>{
      const b=Object.keys(FILT).filter(k=>k!=='none'&&likes(f,k)).map(k=>FILT[k].e).join(' ')||'👁️'; 
      const c=S.got[key(p,f)]||0; 
      let ed = getEntityData(p, f);
      let coordStr = c ? `<br><small style="color:var(--scan)">LOC: X:${ed.x} Y:${ed.y} Z:${ed.z}</small>` : '';
-     return `<div class="jr"><span class="em">${f.e}</span><div style="flex:1;"><b>${c?f.n:'???'}</b><br><small>Requires Filter: ${b}</small>${coordStr}</div></div>`
- }).join('')+'</details>').join('')}
+     return `<div class="jr"><span class="em">${f.e}</span><div style="flex:1;"><b>${c?f.n:'???'}</b><br><small>Requires Filter: ${b}</small>${coordStr}</div>${c?`<button class="sm" data-si="${si}" data-fn="${encodeURIComponent(f.n)}">📍 Locate</button>`:''}</div>`
+ }).join('')+'</details>').join('');g.querySelectorAll('details').forEach((d,i)=>{if(was[i])d.open=true});g.querySelectorAll('[data-fn]').forEach(b=>b.onclick=()=>locate(+b.dataset.si,decodeURIComponent(b.dataset.fn)))}
 
 document.getElementById('snd').onclick=function(){
   soundOn=!soundOn; if(soundOn && !nz) initAudio(); 
@@ -966,7 +974,7 @@ document.getElementById('reset').onclick=()=>{if(confirm('Wipe all terminal data
 
 generateAnomalies(); ui();
 (function loop(n){ const dt=Math.min((n-last)/1000,.1); last=n; draw(dt); requestAnimationFrame(loop); })(last);
-document.getElementById('quiz-btn').onclick=quiz;document.getElementById('sky-btn').onclick=e=>{showSky=!showSky;if(!showSky&&skyBtn)skyBtn.style.display='none';e.target.textContent='Sky guide: '+(showSky?'on':'off')};
+document.getElementById('quiz-btn').onclick=quiz;document.getElementById('sky-btn').onclick=e=>{showSky=!showSky;try{localStorage.setItem('paSky',showSky?'1':'0')}catch(_){}if(!showSky&&skyBtn)skyBtn.style.display='none';e.target.textContent='Sky guide: '+(showSky?'on':'off')};
 
 skyBtn=document.createElement('button');skyBtn.id='sky-cap';skyBtn.style.cssText='position:absolute;left:50%;top:50%;transform:translate(-50%,96px);background:#d9a441;color:#1a1204;font:600 15px var(--sans);padding:12px 24px;border-radius:999px;border:0;cursor:pointer;display:none;z-index:10;box-shadow:0 10px 30px rgba(217,164,65,.3)';
 skyBtn.onclick=studySky;document.getElementById('canvas-container').appendChild(skyBtn);
@@ -982,6 +990,8 @@ document.addEventListener('click',e=>{if(e.target.closest&&e.target.closest('but
 addEventListener('keydown',e=>{if(e.key==='Escape'&&document.getElementById('modal-overlay').style.display==='flex')closeDatapad()});
 if(!S.seen){S.seen=1;save();setTimeout(()=>toast('Drag to scan the sky · pinch or use + / − to zoom'),700);}
 document.getElementById('m-photo').onclick=photoMode;
+document.getElementById('sky-btn').textContent='Sky guide: '+(showSky?'on':'off');
+locHud=document.createElement('div');locHud.style.cssText='position:absolute;left:12px;bottom:10px;font:600 11px var(--sans);letter-spacing:.04em;color:rgba(236,230,214,.8);background:rgba(8,12,22,.6);padding:5px 10px;border-radius:999px;pointer-events:none;z-index:5;font-variant-numeric:tabular-nums';document.getElementById('canvas-container').appendChild(locHud);
 </script>
 </body>
 </html>
