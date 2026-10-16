@@ -1,0 +1,2648 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" href="data:," />
+    <title>The Last Postman</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Nunito:ital,wght@0,400;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet" />
+    <style>
+      :root{
+        --ink:#2b2620; --ink-soft:#4a4238; --paper:#f3ead8; --paper-2:#eadfc8;
+        --panel:rgba(38,32,26,.92); --panel-line:rgba(243,234,216,.22);
+        --cream:#f6efdd; --cream-dim:#cfc4ab; --gold:#e8b34b; --gold-soft:#c99a3a;
+        --accent:#b4552d; --teal:#3f7d74;
+        --btn-bg:rgba(30,25,20,.78); --btn-line:rgba(246,239,221,.35);
+        --shadow:0 10px 30px rgba(10,8,5,.45);
+      }
+      @media (prefers-color-scheme: light){
+        :root{ --panel:rgba(43,36,28,.94); }
+      }
+      *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+      html,body{height:100%; overscroll-behavior:none; touch-action:none;}
+      body{
+        margin:0; overflow:hidden; background:#17140f; color:var(--cream);
+        font-family:"Nunito",system-ui,sans-serif;
+        overscroll-behavior:none; touch-action:none;
+        -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;
+        position:fixed; inset:0; width:100%;
+      }
+      #stage{position:fixed; inset:0; touch-action:none; overscroll-behavior:none;}
+      canvas#game{position:absolute; inset:0; width:100%; height:100%; display:block; touch-action:none;}
+      #grain{position:absolute; inset:0; pointer-events:none; opacity:.5; mix-blend-mode:overlay;
+        background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.05 0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");}
+      #vig{position:absolute; inset:0; pointer-events:none;
+        background:radial-gradient(ellipse at center, transparent 55%, rgba(12,9,6,.38) 100%);}
+      /* blend-mode grain over a live canvas is a full-screen re-composite every
+         frame — on touch devices keep the texture, drop the blend cost */
+      @media (pointer:coarse){ #grain{opacity:.2; mix-blend-mode:normal;} }
+
+      /* ---------- HUD ---------- */
+      #hud{position:absolute; inset:0; pointer-events:none; }
+      #hudTop{position:absolute; top:calc(10px + env(safe-area-inset-top)); left:12px; right:12px;
+        display:flex; align-items:flex-start; gap:10px;}
+      #dayChip{pointer-events:none; background:var(--btn-bg); border:1px solid var(--btn-line);
+        border-radius:12px; padding:8px 13px; backdrop-filter:blur(4px); max-width:min(62vw,520px);}
+      #dayChip .day{font-family:"Cormorant Garamond",serif; font-weight:700; font-size:19px; letter-spacing:.04em; color:var(--gold); line-height:1;}
+      #dayChip .day .phase{font-size:13px; color:var(--cream-dim); font-family:"Nunito",sans-serif; font-weight:700; letter-spacing:.06em;}
+      #dayChip .obj{font-size:12.5px; line-height:1.35; color:var(--cream); margin-top:3px; font-weight:600;}
+      #hudBtns{margin-left:auto; display:flex; gap:8px; pointer-events:auto;}
+      .hbtn{width:46px; height:46px; border-radius:13px; border:1px solid var(--btn-line);
+        background:var(--btn-bg); color:var(--cream); cursor:pointer; display:flex; align-items:center; justify-content:center;
+        position:relative; backdrop-filter:blur(4px); transition:transform .12s, background .12s;}
+      .hbtn:hover{background:rgba(60,50,38,.85);}
+      .hbtn:active{transform:scale(.93);}
+      .hbtn svg{width:23px; height:23px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round;}
+      .hbtn .badge{position:absolute; top:-6px; right:-6px; min-width:20px; height:20px; padding:0 5px;
+        border-radius:10px; background:var(--accent); color:#fff; font-size:11px; font-weight:800;
+        display:flex; align-items:center; justify-content:center; border:1.5px solid #17140f;}
+      #hudStack{position:absolute; left:12px; bottom:calc(12px + env(safe-area-inset-bottom)); display:flex; flex-direction:column; gap:7px;}
+      #fragChip,#rankChip{
+        background:var(--btn-bg); border:1px solid var(--btn-line); border-radius:11px; padding:6px 11px;
+        font-size:12.5px; font-weight:700; color:var(--cream-dim); display:flex; gap:7px; align-items:center; width:max-content;}
+      #fragChip b,#rankChip b{color:var(--gold); font-size:14px;}
+      #fragChip svg{width:15px;height:15px; fill:var(--gold); stroke:none;}
+      #rankChip svg{width:15px;height:15px; fill:none; stroke:var(--gold); stroke-width:1.8;}
+
+      /* ---------- interact prompt ---------- */
+      #prompt{position:absolute; left:50%; bottom:19%; transform:translateX(-50%) translateY(6px);
+        background:var(--btn-bg); border:1px solid var(--btn-line); border-radius:999px; padding:8px 16px;
+        font-size:13.5px; font-weight:700; color:var(--cream); opacity:0; pointer-events:none;
+        transition:opacity .18s, transform .18s; text-align:center; line-height:1.35; max-width:92vw;}
+      #prompt.on{opacity:1; transform:translateX(-50%) translateY(0);}
+      #prompt .key{display:inline-block; background:var(--cream); color:#241d14; border-radius:6px;
+        padding:0 7px; margin-right:8px; font-weight:800; font-size:12px;}
+
+      /* ---------- dialogue ---------- */
+      #dlg{position:absolute; left:50%; transform:translateX(-50%) translateY(16px);
+        bottom:calc(14px + env(safe-area-inset-bottom)); width:min(680px, calc(100vw - 24px));
+        background:var(--panel); border:1px solid var(--panel-line); border-radius:16px;
+        padding:16px 20px 14px; box-shadow:var(--shadow); opacity:0; pointer-events:none;
+        transition:opacity .22s, transform .22s; cursor:pointer;}
+      #dlg.on{opacity:1; pointer-events:auto; transform:translateX(-50%) translateY(0);}
+      #dlgName{font-family:"Cormorant Garamond",serif; font-weight:700; font-size:18px; letter-spacing:.05em;
+        color:var(--gold); margin-bottom:3px;}
+      #dlgName.narr{color:var(--cream-dim); font-style:italic;}
+      #dlgText{font-size:16.5px; line-height:1.5; color:var(--cream); min-height:50px; font-weight:600;}
+      #dlgText.narr{font-family:"Cormorant Garamond",serif; font-style:italic; font-size:18.5px; font-weight:500;}
+      #dlgNext{text-align:right; font-size:11.5px; color:var(--cream-dim); font-weight:700; letter-spacing:.08em;
+        text-transform:uppercase; margin-top:6px; animation:pulseHint 1.6s ease-in-out infinite;}
+      @keyframes pulseHint{0%,100%{opacity:.45}50%{opacity:1}}
+
+      /* ---------- toast ---------- */
+      #toast{position:absolute; top:calc(84px + env(safe-area-inset-top)); left:50%; transform:translateX(-50%) translateY(-8px);
+        width:min(560px, calc(100vw - 32px)); text-align:center; background:var(--panel);
+        border:1px solid var(--panel-line); border-radius:14px; padding:12px 18px; box-shadow:var(--shadow);
+        opacity:0; pointer-events:none; transition:opacity .3s, transform .3s;}
+      #toast.on{opacity:1; transform:translateX(-50%) translateY(0);}
+      #toast .t1{font-family:"Cormorant Garamond",serif; font-style:italic; font-size:17.5px; line-height:1.4; color:var(--cream);}
+      #toast .t2{font-size:11px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--gold); margin-top:4px;}
+
+      /* ---------- panels (satchel / sort / mend) ---------- */
+      .scrim{position:absolute; inset:0; background:rgba(10,8,5,.55); opacity:0; pointer-events:none; transition:opacity .25s;}
+      .scrim.on{opacity:1; pointer-events:auto;}
+      .gpanel{position:absolute; top:50%; left:50%; transform:translate(-50%,-46%); width:min(480px, calc(100vw - 28px));
+        max-height:min(82vh, 680px); overflow:auto; overscroll-behavior:contain; touch-action:pan-y; -webkit-overflow-scrolling:touch; background:linear-gradient(170deg,#3a2f22,#2c2318);
+        border:1px solid rgba(232,179,75,.35); border-radius:18px; box-shadow:var(--shadow);
+        padding:20px 20px 14px; opacity:0; pointer-events:none; transition:opacity .25s, transform .25s;}
+      .gpanel.on{opacity:1; pointer-events:auto; transform:translate(-50%,-50%);}
+      .gpanel h2{font-family:"Cormorant Garamond",serif; margin:0 0 2px; font-size:26px; color:var(--paper); font-weight:700;}
+      .gpanel .sub{font-size:12.5px; color:var(--cream-dim); margin-bottom:14px; font-weight:600; line-height:1.45;}
+      .letter{border:1px solid rgba(243,234,216,.18); background:rgba(243,234,216,.05); border-radius:12px;
+        padding:12px 14px; margin-bottom:10px; cursor:pointer; transition:background .15s, border-color .15s;}
+      .letter:hover{background:rgba(243,234,216,.11);}
+      .letter.tracked{border-color:var(--gold); background:rgba(232,179,75,.12);}
+      .letter.done{opacity:.45; cursor:default;}
+      .letter.side{border-style:dashed;}
+      .letter .lt{font-family:"Cormorant Garamond",serif; font-size:18.5px; font-weight:700; color:var(--paper); line-height:1.15;}
+      .letter .lm{font-size:12.5px; color:var(--cream-dim); margin-top:3px; line-height:1.45;}
+      .letter .lm b{color:var(--cream);}
+      .letter .tag{display:inline-block; margin-top:7px; font-size:10.5px; font-weight:800; letter-spacing:.1em;
+        text-transform:uppercase; color:#241d14; background:var(--gold); border-radius:999px; padding:2.5px 9px;}
+      .letter .tag.read{background:var(--teal); color:#eef7f3;}
+      .letter .tag.sideT{background:#7a6a9e; color:#f0ebfa;}
+      .letter .tag.doneT{background:#6b5f4c; color:var(--paper);}
+      #satchelEmpty{font-family:"Cormorant Garamond",serif; font-style:italic; font-size:17px; color:var(--cream-dim);
+        text-align:center; padding:16px 0 10px;}
+      .panelClose{display:block; margin:10px auto 2px; background:#2c2318; border:1px solid var(--btn-line); color:var(--cream);
+        border-radius:999px; padding:8px 22px; font-family:inherit; font-weight:700; font-size:13px; cursor:pointer;
+        position:sticky; bottom:0; box-shadow:0 -8px 14px rgba(20,15,9,.55);}
+      .panelClose:hover{background:rgba(243,234,216,.1);}
+      #stampRow{display:flex; flex-wrap:wrap; gap:7px; margin-top:6px;}
+      .stampChip{border:1.5px dashed rgba(232,179,75,.55); color:var(--gold); border-radius:7px; padding:4px 9px;
+        font-size:11px; font-weight:800; letter-spacing:.05em; transform:rotate(-1.5deg); background:rgba(232,179,75,.07);}
+      .stampChip.dim{border-color:rgba(243,234,216,.18); color:rgba(207,196,171,.4); background:none;}
+      .sectLabel{font-size:10.5px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--cream-dim); margin:14px 0 7px;}
+      .heartRow{font-size:12.5px; color:var(--cream-dim); font-weight:700; line-height:1.9;}
+      .heartRow .hn{color:var(--cream);}
+      .heartRow .hp{color:#e05656; letter-spacing:2px;}
+      .heartRow .hp .off{color:rgba(243,234,216,.22);}
+
+      /* sorting mini-game */
+      #sortCard{border:1px solid rgba(243,234,216,.22); background:rgba(243,234,216,.07); border-radius:12px;
+        padding:14px 16px; margin-bottom:12px; min-height:86px;}
+      #sortCard .sa{font-family:"Cormorant Garamond",serif; font-size:19px; font-weight:700; color:var(--paper); line-height:1.2;}
+      #sortCard .sm{font-size:12.5px; color:var(--cream-dim); margin-top:3px; line-height:1.45;}
+      #sortBins{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+      .binBtn{border:1px solid rgba(232,179,75,.4); background:rgba(232,179,75,.08); color:var(--cream);
+        border-radius:11px; padding:12px 8px; font-family:inherit; font-weight:800; font-size:13.5px; cursor:pointer; transition:background .12s, transform .1s;}
+      .binBtn:hover{background:rgba(232,179,75,.18);}
+      .binBtn:active{transform:scale(.96);}
+      .binBtn.good{background:rgba(63,125,116,.55); border-color:#7fb8ad;}
+      .binBtn.bad{background:rgba(160,61,42,.5); border-color:#d07a5f;}
+      #sortMeta{display:flex; justify-content:space-between; font-size:12px; font-weight:800; color:var(--cream-dim);
+        letter-spacing:.06em; text-transform:uppercase; margin-bottom:10px;}
+      #sortMeta b{color:var(--gold);}
+
+      /* mending puzzle */
+      #mendDone{border:1px dashed rgba(243,234,216,.3); border-radius:12px; padding:12px 14px; min-height:64px; margin-bottom:12px;
+        font-family:"Cormorant Garamond",serif; font-style:italic; font-size:16.5px; line-height:1.55; color:var(--cream);}
+      #mendDone .placed{color:var(--paper);}
+      #mendDone .ph{color:rgba(207,196,171,.45);}
+      .strip{display:block; width:100%; text-align:left; border:1px solid rgba(243,234,216,.2); background:rgba(243,234,216,.06);
+        color:var(--cream); border-radius:10px; padding:10px 13px; margin-bottom:8px; font-family:"Cormorant Garamond",serif;
+        font-style:italic; font-size:16px; line-height:1.4; cursor:pointer; transition:background .12s;}
+      .strip:hover{background:rgba(243,234,216,.13);}
+      .strip.used{opacity:.3; pointer-events:none;}
+      .strip.shake{animation:shk .3s;}
+      @keyframes shk{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+
+      /* ---------- title / day card / ending ---------- */
+      .overlay{position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+        flex-direction:column; text-align:center; padding:24px; opacity:0; pointer-events:none; transition:opacity .6s;}
+      .overlay.on{opacity:1; pointer-events:auto;}
+      #titleScreen{background:radial-gradient(ellipse at 50% 35%, rgba(46,38,28,.88), rgba(14,11,8,.96) 75%);}
+      #titleScreen .stamp{width:86px; height:104px; border:2px dashed rgba(232,179,75,.65); border-radius:8px;
+        display:flex; align-items:center; justify-content:center; margin-bottom:20px; transform:rotate(-4deg);
+        background:rgba(243,234,216,.06);}
+      #titleScreen .stamp svg{width:46px; height:46px; stroke:var(--gold); fill:none; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round;}
+      #titleScreen h1{font-family:"Cormorant Garamond",serif; font-size:clamp(40px, 8.5vw, 68px); font-weight:700;
+        margin:0; color:var(--paper); letter-spacing:.02em; line-height:1.02;}
+      #titleScreen .premise{max-width:520px; font-size:16px; line-height:1.6; color:var(--cream-dim); margin:16px 0 6px; font-weight:600;}
+      #titleScreen .premise em{color:var(--cream); font-family:"Cormorant Garamond",serif; font-size:18.5px;}
+      .bigBtn{margin-top:20px; background:var(--accent); color:#fdf6e9; border:none; border-radius:999px;
+        padding:14px 38px; font-family:"Cormorant Garamond",serif; font-size:21px; font-weight:700; letter-spacing:.03em;
+        cursor:pointer; box-shadow:0 8px 24px rgba(180,85,45,.4); transition:transform .15s, filter .15s;}
+      .bigBtn:hover{filter:brightness(1.1);} .bigBtn:active{transform:scale(.96);}
+      .controlsNote{margin-top:18px; font-size:12.5px; color:rgba(207,196,171,.75); line-height:1.7; font-weight:600;}
+      .controlsNote b{color:var(--cream); background:rgba(243,234,216,.12); border-radius:5px; padding:1px 7px;}
+      #dayCard{background:rgba(12,9,6,.88);}
+      #dayCard .dnum{font-size:12.5px; font-weight:800; letter-spacing:.34em; text-transform:uppercase; color:var(--gold);}
+      #dayCard h2{font-family:"Cormorant Garamond",serif; font-size:clamp(34px,7vw,54px); margin:8px 0 4px; color:var(--paper); font-weight:700;}
+      #dayCard p{font-family:"Cormorant Garamond",serif; font-style:italic; font-size:clamp(17px,3.4vw,21px); color:var(--cream-dim); max-width:480px; line-height:1.5; margin:0;}
+      #endingScreen{background:radial-gradient(ellipse at 50% 40%, rgba(40,32,22,.93), rgba(12,9,6,.97) 78%); overflow:auto; overscroll-behavior:contain; touch-action:pan-y;}
+      #endingScreen .dnum{font-size:12px; font-weight:800; letter-spacing:.3em; text-transform:uppercase; color:var(--gold);}
+      #endingScreen h2{font-family:"Cormorant Garamond",serif; font-size:clamp(34px,7vw,52px); margin:8px 0 10px; color:var(--paper); font-weight:700; line-height:1.05;}
+      #endingScreen .epi{max-width:540px; font-family:"Cormorant Garamond",serif; font-size:clamp(17px,3.4vw,20px);
+        line-height:1.6; color:var(--cream); font-style:italic;}
+      #endStats{display:flex; gap:12px; margin-top:24px; flex-wrap:wrap; justify-content:center;}
+      #endStats .stat{background:rgba(243,234,216,.07); border:1px solid rgba(243,234,216,.18); border-radius:12px; padding:10px 18px;}
+      #endStats .stat .v{font-family:"Cormorant Garamond",serif; font-size:26px; font-weight:700; color:var(--gold); line-height:1;}
+      #endStats .stat .k{font-size:10.5px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--cream-dim); margin-top:3px;}
+
+      /* ---------- touch controls ---------- */
+      #joy{position:absolute; width:124px; height:124px; border-radius:50%; border:1.5px solid rgba(232,179,75,.5);
+        background:radial-gradient(circle at 50% 42%, rgba(62,50,36,.45), rgba(24,19,14,.52) 72%);
+        box-shadow:0 6px 22px rgba(0,0,0,.35), inset 0 0 0 6px rgba(246,239,221,.05);
+        display:none; pointer-events:none; z-index:5;}
+      #joy::before{content:""; position:absolute; inset:17px; border-radius:50%; border:1px dashed rgba(246,239,221,.22);}
+      #joyKnob{position:absolute; width:54px; height:54px; border-radius:50%;
+        background:radial-gradient(circle at 38% 32%, rgba(255,246,224,.95), rgba(214,186,138,.88) 68%, rgba(178,147,98,.92));
+        border:1.5px solid rgba(255,244,214,.8); box-shadow:0 4px 12px rgba(0,0,0,.42);
+        left:50%; top:50%; transform:translate(-50%,-50%);}
+      #btnAct{position:absolute; right:18px; bottom:calc(74px + env(safe-area-inset-bottom)); width:66px; height:66px;
+        border-radius:50%; border:1.5px solid var(--btn-line); background:var(--btn-bg); color:var(--gold);
+        display:none; align-items:center; justify-content:center; cursor:pointer; z-index:5; pointer-events:auto;}
+      #btnAct svg{width:30px; height:30px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round;}
+      #btnAct{transition:transform .12s;}
+      #btnAct:active{transform:scale(.92);}
+      #btnAct.pulse{animation:actPulse 1.5s ease-in-out infinite;}
+      @keyframes actPulse{0%,100%{box-shadow:0 0 0 0 rgba(232,179,75,.45)}50%{box-shadow:0 0 0 13px rgba(232,179,75,0)}}
+      body.touch #btnAct{display:flex;}
+      #fadeBlack{position:absolute; inset:0; background:#0b0906; opacity:0; pointer-events:none; transition:opacity .8s;}
+      @media (prefers-reduced-motion: reduce){ #dlgNext{animation:none;} #btnAct.pulse{animation:none;} }
+    </style>
+  </head>
+  <body>
+    <div id="stage">
+      <canvas id="game"></canvas>
+      <div id="vig"></div>
+      <div id="grain"></div>
+
+      <div id="hud">
+        <div id="hudTop">
+          <div id="dayChip">
+            <div class="day"><span id="hudDay">Day One</span> <span class="phase" id="hudPhase">· Morning</span></div>
+            <div class="obj" id="hudObj">…</div>
+          </div>
+          <div id="hudBtns">
+            <button class="hbtn" id="btnSatchel" aria-label="Open satchel">
+              <svg viewBox="0 0 24 24"><path d="M5 8h14l-1.2 12.1a1.8 1.8 0 0 1-1.8 1.6H8a1.8 1.8 0 0 1-1.8-1.6L5 8Z"/><path d="M8.5 10V6.5a3.5 3.5 0 0 1 7 0V10"/></svg>
+              <span class="badge" id="satchelBadge" style="display:none">0</span>
+            </button>
+            <button class="hbtn" id="btnSound" aria-label="Toggle sound">
+              <svg viewBox="0 0 24 24" id="icoSndOn"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5H4Z"/><path d="M15.5 9.2a4 4 0 0 1 0 5.6"/><path d="M18 6.8a7.4 7.4 0 0 1 0 10.4"/></svg>
+              <svg viewBox="0 0 24 24" id="icoSndOff" style="display:none"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5H4Z"/><path d="M16 9.5l5 5M21 9.5l-5 5"/></svg>
+            </button>
+          </div>
+        </div>
+        <div id="hudStack">
+          <div id="rankChip">
+            <svg viewBox="0 0 24 24"><path d="M4 20V9l8-5 8 5v11"/><path d="M9.5 20v-6h5v6"/></svg>
+            <span id="rankName">Relief Runner</span> <b id="rankPts">0</b>
+          </div>
+          <div id="fragChip">
+            <svg viewBox="0 0 24 24"><path d="M12 2.5l2.1 6.2 6.4.4-5 4.1 1.7 6.3L12 15.7l-5.2 3.8 1.7-6.3-5-4.1 6.4-.4L12 2.5Z"/></svg>
+            Memory fragments <b id="fragCount">0 / 20</b>
+          </div>
+        </div>
+      </div>
+
+      <div id="prompt"><span class="key" id="promptKey">E</span><span id="promptText">Knock</span></div>
+
+      <div id="dlg">
+        <div id="dlgName">…</div>
+        <div id="dlgText"></div>
+        <div id="dlgNext">Tap or press E to continue</div>
+      </div>
+
+      <div id="toast"><div class="t1" id="toastText"></div><div class="t2" id="toastSub"></div></div>
+
+      <div class="scrim" id="scrim"></div>
+      <div class="gpanel" id="satchel">
+        <h2>Your Satchel</h2>
+        <div class="sub">Choose a letter to follow its recipient. The brass marker at the edge of your view will point the way.</div>
+        <div id="satchelList"></div>
+        <div class="sectLabel">The Town, As You Carry It</div>
+        <div class="heartRow" id="heartList"></div>
+        <div class="sectLabel">Stamps Earned</div>
+        <div id="stampRow"></div>
+        <button class="panelClose" id="satchelClose">Close satchel</button>
+      </div>
+
+      <div class="gpanel" id="sortPanel">
+        <h2>The Morning Sort</h2>
+        <div class="sub">The day's mail, in a heap. Read each address and send it to the right quarter of Ashmere. A well-sorted morning makes a lighter satchel — and the office notices.</div>
+        <div id="sortMeta"><span>Letter <b id="sortIdx">1 / 6</b></span><span>Sorted true <b id="sortScore">0</b></span></div>
+        <div id="sortCard"><div class="sa" id="sortAddr">…</div><div class="sm" id="sortNote">…</div></div>
+        <div id="sortBins"></div>
+        <button class="panelClose" id="sortSkip">Leave the rest unsorted</button>
+      </div>
+
+      <div class="gpanel" id="mendPanel">
+        <h2 id="mendTitle">A Torn Letter</h2>
+        <div class="sub">The pieces are all here. Lay them in the order they were written — tap the strips one by one.</div>
+        <div id="mendDone"><span class="ph">The letter, as you mend it, will appear here…</span></div>
+        <div id="mendStrips"></div>
+        <button class="panelClose" id="mendClose">Set it aside for now</button>
+      </div>
+
+      <div id="joy"><div id="joyKnob"></div></div>
+      <button id="btnAct" aria-label="Interact">
+        <svg viewBox="0 0 24 24"><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v7a2.5 2.5 0 0 1-2.5 2.5H9l-5 4V6.5Z"/></svg>
+      </button>
+
+      <div class="overlay" id="dayCard">
+        <div class="dnum" id="dayCardNum">Day One</div>
+        <h2 id="dayCardTitle">The Grey Town</h2>
+        <p id="dayCardText"></p>
+      </div>
+
+      <div class="overlay" id="endingScreen">
+        <div class="dnum">The Last Postman</div>
+        <h2 id="endTitle">The Lighting</h2>
+        <div class="epi" id="endText"></div>
+        <div id="endStats"></div>
+        <button class="bigBtn" id="btnAgain">Walk the route again</button>
+      </div>
+
+      <div class="overlay on" id="titleScreen">
+        <div class="stamp">
+          <svg viewBox="0 0 24 24"><path d="M3.5 6.5A1.5 1.5 0 0 1 5 5h14a1.5 1.5 0 0 1 1.5 1.5v11A1.5 1.5 0 0 1 19 19H5a1.5 1.5 0 0 1-1.5-1.5v-11Z"/><path d="M4 6.5l8 6 8-6"/></svg>
+        </div>
+        <h1>The Last Postman</h1>
+        <p class="premise">The town of Ashmere is forgetting itself — its baker her recipes, its sailor the sea.
+          You are its last postman, and <em>a letter, delivered by hand, is the only thing that makes people remember.</em>
+          Five days. One satchel. A river to cross, a town to bring back into colour — and a silence, forty years old, to finally deliver.</p>
+        <button class="bigBtn" id="btnBegin">Begin the Route</button>
+        <div class="controlsNote">
+          Move with <b>W A S D</b> or <b>Arrow Keys</b> &nbsp;·&nbsp; Knock &amp; talk with <b>E</b> &nbsp;·&nbsp; Satchel <b>B</b><br/>
+          On touch screens, drag to walk and tap the speech button.<br/>
+          A story in five days — one sitting, if your heart allows.
+        </div>
+      </div>
+
+      <div id="fadeBlack"></div>
+    </div>
+
+    <script>
+    "use strict";
+    /* ============================================================
+       THE LAST POSTMAN — a story in five days
+       Canvas top-down exploration. Grey-to-colour world state.
+       ============================================================ */
+
+    /* ---------------- utils ---------------- */
+    const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+    const lerp=(a,b,t)=>a+(b-a)*t;
+    const dist=(x1,y1,x2,y2)=>Math.hypot(x2-x1,y2-y1);
+    function mulberry(seed){return function(){seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+    const rng=mulberry(20261015);
+    const _hxCache=new Map();
+    function hx(c){
+      let v=_hxCache.get(c);
+      if(!v){ v=[parseInt(c.slice(1,3),16),parseInt(c.slice(3,5),16),parseInt(c.slice(5,7),16)]; _hxCache.set(c,v); }
+      return v;
+    }
+    /* watercolour colour: t=0 -> cool ink-wash grey, t=1 -> full colour.
+       Results are memoised on quantised t (and alpha): the draw loop asks for
+       the same handful of colours thousands of times per frame. */
+    const _colCache=new Map();
+    function _colParts(hex){
+      const [r,g,b]=hx(hex);
+      const lum=0.299*r+0.587*g+0.114*b;
+      return [r,g,b,lum*0.88+14,lum*0.92+16,lum*1.0+26];
+    }
+    function col(hex,t){
+      const q=Math.round(clamp(t,0,1)*24), key=hex+"|"+q;
+      let v=_colCache.get(key);
+      if(v===undefined){
+        const P=_colParts(hex), tt=q/24;
+        v="rgb("+Math.round(lerp(P[3],P[0],tt))+","+Math.round(lerp(P[4],P[1],tt))+","+Math.round(lerp(P[5],P[2],tt))+")";
+        if(_colCache.size>6000) _colCache.clear();
+        _colCache.set(key,v);
+      }
+      return v;
+    }
+    function colA(hex,t,a){
+      const q=Math.round(clamp(t,0,1)*24), qa=Math.round(clamp(a,0,1)*20), key=hex+"|"+q+"|"+qa;
+      let v=_colCache.get(key);
+      if(v===undefined){
+        const P=_colParts(hex), tt=q/24;
+        v="rgba("+Math.round(lerp(P[3],P[0],tt))+","+Math.round(lerp(P[4],P[1],tt))+","+Math.round(lerp(P[5],P[2],tt))+","+(qa/20)+")";
+        if(_colCache.size>6000) _colCache.clear();
+        _colCache.set(key,v);
+      }
+      return v;
+    }
+    const $=id=>document.getElementById(id);
+
+    /* ---------------- audio (all synthesised, no files) ----------------
+       A generative engine, not a loop. Every district of Ashmere carries
+       its own chord progression and melodic motif; the time of day
+       retunes the light of it — brighter filters and a busier motif in
+       the morning, a low drone and sparse notes at dusk. Pads crossfade
+       under a lookahead scheduler, plucked motif notes ring through a
+       generated-impulse reverb and a soft echo, and wind breathes
+       underneath it all. One mute (M / the speaker button) silences
+       every bus at the master gain. */
+    const MUS={
+      /* chords and melody scales as midi notes; motif = scale degrees, -1 = rest */
+      postoffice:{chords:[[48,52,55,59],[45,48,52,57],[41,45,48,53],[43,47,50,55]],scale:[72,74,76,79,81,84],motif:[4,2,1,2,-1,3,2,1]},
+      bakery:{chords:[[41,45,48,53],[46,50,53,57],[48,52,55,60],[50,53,57,60]],scale:[65,67,69,72,74,77],motif:[0,1,2,4,3,2,1,-1]},
+      garden:{chords:[[43,47,50,55],[48,52,55,59],[40,43,47,52],[50,54,57,62]],scale:[67,69,71,74,76,79],motif:[2,4,3,1,2,-1,0,1]},
+      tower:{chords:[[45,48,52,57],[41,45,48,53],[48,52,55,60],[43,47,50,55]],scale:[69,72,74,76,79,81],motif:[0,-1,2,1,0,-1,3,2],bell:true},
+      cottage:{chords:[[41,45,48,53],[38,41,45,50],[46,50,53,57],[48,52,55,60]],scale:[65,69,72,74,77,79],motif:[1,0,1,2,-1,2,3,2]},
+      harbor:{chords:[[38,41,45,50],[46,50,53,57],[41,45,48,53],[48,52,55,59]],scale:[62,64,65,69,71,74],motif:[0,2,1,-1,3,2,1,0]},
+      market:{chords:[[38,42,45,50],[43,47,50,54],[45,49,52,57],[47,50,54,59]],scale:[66,69,71,74,76,78],motif:[0,1,2,3,2,4,3,1],lively:true},
+      orchard:{chords:[[40,44,47,52],[45,49,52,57],[49,52,56,61],[47,51,54,59]],scale:[68,69,71,73,76,78],motif:[3,2,1,2,-1,0,1,2]},
+      mill:{chords:[[40,43,47,50],[48,52,55,59],[43,47,50,55],[50,54,57,62]],scale:[64,66,67,71,74,76],motif:[0,1,-1,2,1,0,-1,-1]},
+      cellar:{chords:[[33,36,40,45],[40,43,47,52],[33,36,40,45],[38,41,45,50]],scale:[57,60,62,64,69],motif:[0,-1,-1,1,-1,2,-1,-1],slow:true},
+      lamp:{chords:[[36,43,55,60],[34,41,53,58],[39,46,58,63],[36,43,55,60]],scale:[72,76,79,84,86],motif:[0,-1,1,-1,2,-1,1,-1],slow:true,bell:true}
+    };
+    const AudioSys={
+      ctx:null, master:null, musicBus:null, sfxBus:null, verb:null, echo:null, noiseBuf:null,
+      muted:false, padTimer:null, started:false, ambTimer:null, stepN:0, nextTime:0, bright:2000,
+      mf(m){ return 440*Math.pow(2,(m-69)/12); },
+      init(){
+        if(this.ctx) return;
+        try{
+          const ctx=new (window.AudioContext||window.webkitAudioContext)();
+          this.ctx=ctx;
+          this.master=ctx.createGain(); this.master.gain.value=this.muted?0:0.5;
+          const comp=ctx.createDynamicsCompressor();
+          comp.threshold.value=-20; comp.knee.value=18; comp.ratio.value=4; comp.attack.value=0.02; comp.release.value=0.24;
+          this.master.connect(comp); comp.connect(ctx.destination);
+          this.musicBus=ctx.createGain(); this.musicBus.gain.value=0.9; this.musicBus.connect(this.master);
+          this.sfxBus=ctx.createGain(); this.sfxBus.gain.value=1; this.sfxBus.connect(this.master);
+          /* reverb: a generated decaying-noise impulse — no audio files */
+          const len=Math.floor(ctx.sampleRate*1.9), imp=ctx.createBuffer(2,len,ctx.sampleRate);
+          for(let c=0;c<2;c++){ const d=imp.getChannelData(c);
+            for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/len,2.7); }
+          this.verb=ctx.createConvolver(); this.verb.buffer=imp;
+          const vg=ctx.createGain(); vg.gain.value=0.55; this.verb.connect(vg); vg.connect(this.master);
+          /* a soft echo for plucked motif notes */
+          this.echo=ctx.createDelay(1); this.echo.delayTime.value=0.38;
+          const ef=ctx.createBiquadFilter(); ef.type="lowpass"; ef.frequency.value=1700;
+          const fb=ctx.createGain(); fb.gain.value=0.34;
+          this.echo.connect(ef); ef.connect(fb); fb.connect(this.echo);
+          const eg=ctx.createGain(); eg.gain.value=0.38; this.echo.connect(eg); eg.connect(this.master);
+          /* shared noise buffer: pages, water, wind, boot leather */
+          const nl=ctx.sampleRate*2, nb=ctx.createBuffer(1,nl,ctx.sampleRate), nd=nb.getChannelData(0);
+          for(let i=0;i<nl;i++) nd[i]=Math.random()*2-1;
+          this.noiseBuf=nb;
+        }catch(e){ this.ctx=null; }
+      },
+      resume(){ if(this.ctx&&this.ctx.state==="suspended") this.ctx.resume(); },
+      setMuted(m){
+        this.muted=m;
+        if(this.master&&this.ctx) this.master.gain.setTargetAtTime(m?0:0.5,this.ctx.currentTime,0.04);
+        else if(this.master) this.master.gain.value=m?0:0.5;
+      },
+      env(g,t0,attack,peak,dur){
+        g.gain.setValueAtTime(0.0001,t0);
+        g.gain.exponentialRampToValueAtTime(Math.max(peak,0.0002),t0+attack);
+        g.gain.exponentialRampToValueAtTime(0.0001,t0+dur);
+      },
+      voice(freq,dur,type,vol,when,opt){
+        if(!this.ctx) return;
+        opt=opt||{};
+        const ctx=this.ctx, t0=ctx.currentTime+(when||0);
+        const o=ctx.createOscillator(), g=ctx.createGain();
+        o.type=type||"sine"; o.frequency.setValueAtTime(freq,t0);
+        if(opt.slide) o.frequency.exponentialRampToValueAtTime(Math.max(28,opt.slide),t0+dur);
+        if(opt.detune) o.detune.value=opt.detune;
+        this.env(g,t0,opt.attack||0.03,vol||0.12,dur);
+        o.connect(g); g.connect(opt.bus||this.sfxBus);
+        if(opt.verb){ const s=ctx.createGain(); s.gain.value=opt.verb; g.connect(s); s.connect(this.verb); }
+        if(opt.echo){ const s=ctx.createGain(); s.gain.value=opt.echo; g.connect(s); s.connect(this.echo); }
+        o.start(t0); o.stop(t0+dur+0.1);
+      },
+      tone(freq,dur,type,vol,when,slideTo){ if(this.muted) return; this.voice(freq,dur,type,vol,when,{slide:slideTo}); },
+      noise(dur,vol,when,opt){
+        if(!this.ctx||!this.noiseBuf) return;
+        opt=opt||{};
+        const ctx=this.ctx, t0=ctx.currentTime+(when||0);
+        const src=ctx.createBufferSource(); src.buffer=this.noiseBuf; src.loop=true;
+        src.playbackRate.value=opt.rate||(0.75+Math.random()*0.4);
+        const f=ctx.createBiquadFilter(); f.type=opt.type||"bandpass"; f.Q.value=opt.q||0.8;
+        f.frequency.setValueAtTime(opt.f0||1200,t0);
+        if(opt.f1) f.frequency.exponentialRampToValueAtTime(opt.f1,t0+dur);
+        const g=ctx.createGain(); this.env(g,t0,opt.attack||0.012,vol,dur);
+        src.connect(f); f.connect(g); g.connect(opt.bus||this.sfxBus);
+        src.start(t0,Math.random()*1.3); src.stop(t0+dur+0.1);
+      },
+      pad(freq,dur,vol,when){
+        if(!this.ctx) return;
+        const ctx=this.ctx, t0=ctx.currentTime+(when||0);
+        const f=ctx.createBiquadFilter(); f.type="lowpass"; f.frequency.value=this.bright; f.Q.value=0.4;
+        const g=ctx.createGain();
+        g.gain.setValueAtTime(0.0001,t0);
+        g.gain.exponentialRampToValueAtTime(vol,t0+dur*0.36);
+        g.gain.setValueAtTime(vol,t0+dur*0.6);
+        g.gain.exponentialRampToValueAtTime(0.0001,t0+dur);
+        [-4,3].forEach(dt=>{ const o=ctx.createOscillator(); o.type="triangle"; o.frequency.value=freq; o.detune.value=dt; o.connect(f); o.start(t0); o.stop(t0+dur+0.1); });
+        const sub=ctx.createOscillator(); sub.type="sine"; sub.frequency.value=freq; sub.connect(f); sub.start(t0); sub.stop(t0+dur+0.1);
+        f.connect(g); g.connect(this.musicBus);
+        const s=ctx.createGain(); s.gain.value=0.35; g.connect(s); s.connect(this.verb);
+      },
+      /* ---- sound effects ---- */
+      knock(){
+        this.noise(0.05,0.10,0,{type:"lowpass",f0:800});
+        this.voice(148,0.1,"triangle",0.3,0);
+        this.voice(96,0.13,"sine",0.22,0);
+        this.noise(0.05,0.09,0.15,{type:"lowpass",f0:800});
+        this.voice(122,0.11,"triangle",0.27,0.15);
+        this.voice(88,0.14,"sine",0.2,0.15);
+      },
+      chime(){
+        [523.25,659.25,783.99,1046.5,1318.5].forEach((f,i)=>this.voice(f,1.5,"sine",0.085,i*0.085,{verb:0.55,echo:0.18}));
+        [261.63,329.63,392.0].forEach(f=>this.voice(f,2.6,"triangle",0.045,0.05,{attack:0.5,verb:0.4,bus:this.musicBus}));
+      },
+      sparkle(){
+        [1567.98,1760.0,2093.0,2349.3,2637.0].forEach((f,i)=>this.voice(f,0.7,"sine",0.045,i*0.055,{verb:0.4,echo:0.4}));
+      },
+      page(){ this.noise(0.17,0.055,0,{f0:750,f1:2600,q:1.1,attack:0.03}); this.noise(0.1,0.03,0.09,{f0:1800,f1:900,q:1}); },
+      step(){ this.noise(0.05,0.028,0,{type:"lowpass",f0:420+Math.random()*160,rate:0.6}); this.voice(72+Math.random()*22,0.055,"sine",0.016,0); },
+      thock(){ this.noise(0.03,0.06,0,{type:"highpass",f0:1500}); this.voice(235,0.06,"square",0.05,0); this.voice(168,0.1,"triangle",0.13,0.015); },
+      splash(){
+        this.noise(0.42,0.055,0,{type:"lowpass",f0:1300,f1:280,attack:0.02});
+        this.voice(320,0.35,"sine",0.045,0,{slide:140});
+        this.voice(540,0.2,"sine",0.028,0.09,{slide:230});
+        this.voice(880,0.14,"sine",0.016,0.2,{slide:420});
+      },
+      chirp(){
+        const f=2150+Math.random()*650;
+        this.voice(f,0.11,"sine",0.02,0,{slide:f*1.28});
+        this.voice(f*1.1,0.09,"sine",0.016,0.14,{slide:f*0.92});
+        if(Math.random()<0.55) this.voice(f*0.97,0.12,"sine",0.014,0.29,{slide:f*1.2});
+      },
+      gull(){ const f=1250+Math.random()*250; this.voice(f,0.5,"sine",0.02,0,{slide:f*0.62}); this.voice(f*1.05,0.4,"sine",0.014,0.34,{slide:f*0.7}); },
+      owl(){ this.voice(392,0.3,"sine",0.03,0,{slide:366}); this.voice(370,0.44,"sine",0.026,0.38,{slide:349}); },
+      bell(){ this.voice(196,4.2,"sine",0.05,0,{verb:0.7}); this.voice(392,3.0,"sine",0.018,0,{verb:0.7}); this.voice(587.33,1.8,"sine",0.008,0,{verb:0.6}); },
+      fanfare(){
+        [392,523.25,659.25,783.99,1046.5].forEach((f,i)=>this.voice(f,1.1,"triangle",0.07,i*0.11,{verb:0.35}));
+        [261.63,329.63,392.0,523.25].forEach(f=>this.voice(f,2.4,"triangle",0.04,0.45,{attack:0.4,verb:0.4,bus:this.musicBus}));
+      },
+      /* ---- generative music ---- */
+      phase(){ const G=window.LP&&LP.GAME; return (G&&G.state&&typeof G.state.phase==="number")?G.state.phase:0; },
+      district(){
+        const G=window.LP&&LP.GAME;
+        if(!G||!G.player) return "postoffice";
+        if(G.scene==="basement") return "cellar";
+        if(G.scene==="lighthouse") return "lamp";
+        let best="postoffice", bd=Infinity;
+        for(const k in ZONES){ const z=ZONES[k], d=dist(G.player.x,G.player.y,z.cx,z.cy); if(d<bd){ bd=d; best=k; } }
+        return MUS[best]?best:"postoffice";
+      },
+      stepDur(){ const M=MUS[this.district()]; return [0.74,0.82,0.98][this.phase()]*(M&&M.slow?1.25:1); },
+      scheduleStep(s,t){
+        if(this.muted||!this.ctx) return;
+        const key=this.district(), M=MUS[key]||MUS.postoffice, ph=this.phase();
+        this.bright=[2300,1650,950][ph];
+        const when=t-this.ctx.currentTime, sd=this.stepDur(), chordDur=sd*8;
+        const ci=Math.floor(s/8)%M.chords.length, st=s%8, ch=M.chords[ci];
+        if(st===0){
+          ch.forEach(m=>this.pad(this.mf(m),chordDur*1.3,0.034,when));
+          this.pad(this.mf(ch[0]-12),chordDur*1.3,0.042,when);
+          if(ph===2) this.pad(this.mf(ch[0]-5),chordDur*1.3,0.018,when);
+          if(M.bell&&Math.random()<0.45) this.voice(this.mf(ch[0]+24),3.4,"sine",0.026,when+sd*3,{verb:0.65,bus:this.musicBus});
+          if(Math.random()<0.3) this.voice(this.mf(M.scale[M.scale.length-1]),2.2,"sine",0.014,when+sd*5,{verb:0.5,echo:0.3,bus:this.musicBus});
+        }
+        if(st===4) this.pad(this.mf(ch[0]-12),chordDur*0.75,0.028,when);
+        const mi=M.motif[s%M.motif.length];
+        const density=[0.92,0.78,0.55][ph]*(M.lively?1.15:(M.slow?0.6:1));
+        if(mi>=0&&Math.random()<density){
+          const note=M.scale[((mi%M.scale.length)+M.scale.length)%M.scale.length]+(Math.random()<0.1?12:0);
+          this.voice(this.mf(note),1.8,"triangle",0.042,when,{echo:0.5,verb:0.35,bus:this.musicBus});
+          this.voice(this.mf(note)*2,1.1,"sine",0.011,when,{bus:this.musicBus});
+        }
+      },
+      startMusic(){
+        this.stepN=0; this.nextTime=this.ctx.currentTime+0.08;
+        const tick=()=>{
+          if(!this.ctx) return;
+          if(this.nextTime<this.ctx.currentTime-0.25) this.nextTime=this.ctx.currentTime+0.05;
+          /* duck the music a little while someone is talking */
+          const G=window.LP&&LP.GAME;
+          if(G&&this.musicBus) this.musicBus.gain.setTargetAtTime(G.dlg&&G.dlg.open?0.5:0.9,this.ctx.currentTime,0.5);
+          while(this.nextTime<this.ctx.currentTime+0.45){ this.scheduleStep(this.stepN,this.nextTime); this.nextTime+=this.stepDur(); this.stepN++; }
+        };
+        tick();
+        this.padTimer=setInterval(tick,240);
+      },
+      startWind(){
+        const ctx=this.ctx, src=ctx.createBufferSource();
+        src.buffer=this.noiseBuf; src.loop=true;
+        const f=ctx.createBiquadFilter(); f.type="lowpass"; f.frequency.value=300;
+        const g=ctx.createGain(); g.gain.value=0.006;
+        const lfo=ctx.createOscillator(); lfo.frequency.value=0.07;
+        const lg=ctx.createGain(); lg.gain.value=0.0038;
+        lfo.connect(lg); lg.connect(g.gain);
+        src.connect(f); f.connect(g); g.connect(this.musicBus);
+        src.start(); lfo.start();
+      },
+      startAmbience(){
+        if(!this.ctx||this.started) return; this.started=true;
+        this.startMusic(); this.startWind();
+        /* living ambience: birds by day, gulls over the harbour,
+           an owl at dusk, the tower bell when the light goes */
+        this.ambTimer=setInterval(()=>{
+          if(this.muted||!window.LP||!LP.GAME.started||LP.GAME.dlg.open) return;
+          const ph=LP.GAME.state.phase, key=this.district(), r=Math.random();
+          if(ph===2){ if(r<0.38) this.owl(); else if(key==="tower"&&r<0.5) this.bell(); }
+          else if(key==="harbor"){ if(r<0.4) this.gull(); else if(r<0.65) this.chirp(); }
+          else if(r<0.55) this.chirp();
+        },5200);
+      }
+    };
+
+    /* ---------------- world data ---------------- */
+    const WORLD={w:3000,h:1700};
+    const WATER_Y=1120, PIER={x:830,y:1060,w:150,h:260}, POINT={x:1620,y:1080};
+    const RIVER={x:2260,w:150}; /* water band x 2260..2410 */
+    const DOCK_W={x:2236,y:930}, DOCK_E={x:2448,y:930};
+    const BASE={w:1500,h:620};   /* post-office cellar + tunnels */
+    const LAMP={w:520,h:760};    /* lighthouse interior */
+
+    const ZONES={
+      bakery:{cx:330,cy:330,r:330,level:0,target:0},
+      garden:{cx:1030,cy:430,r:330,level:0,target:0},
+      tower:{cx:1560,cy:320,r:320,level:0,target:0},
+      cottage:{cx:1650,cy:790,r:320,level:0,target:0},
+      harbor:{cx:950,cy:1230,r:430,level:0,target:0},
+      market:{cx:1150,cy:830,r:320,level:0,target:0},
+      orchard:{cx:2700,cy:340,r:340,level:0,target:0},
+      mill:{cx:2620,cy:820,r:320,level:0,target:0},
+      postoffice:{cx:430,cy:700,r:300,level:0.25,target:0.25}
+    };
+    const ZONE_WASH={bakery:"#e8a34b",garden:"#6f9e52",tower:"#b48ac2",cottage:"#e88a5c",harbor:"#5c9ac2",postoffice:"#d8b25c",market:"#d8724c",orchard:"#c94f4f",mill:"#c9a34b"};
+    function zoneLevelAt(x,y){
+      let best=0;
+      for(const k in ZONES){const z=ZONES[k];const d=dist(x,y,z.cx,z.cy);if(d<z.r)best=Math.max(best,z.level*(1-d/z.r*0.5));}
+      return best;
+    }
+    let _wcT=0,_wcV=0;
+    function worldColour(){
+      const now=performance.now();
+      if(now-_wcT>120){ let s=0,n=0; for(const k in ZONES){s+=ZONES[k].level;n++;} _wcV=s/n; _wcT=now; }
+      return _wcV;
+    }
+
+    const BUILDINGS=[
+      {id:"bakery", name:"Bramble Bakery", x:215,y:215,w:230,h:150, wall:"#e8c9a0", roof:"#b4552d", zone:"bakery", sign:"BAKERY"},
+      {id:"postoffice", name:"Ashmere Post Office", x:330,y:600,w:200,h:140, wall:"#d9c6a5", roof:"#7a4a35", zone:"postoffice", sign:"POST OFFICE"},
+      {id:"tower", name:"The Clock Tower", x:1495,y:150,w:130,h:250, wall:"#cfc4ae", roof:"#5d6e7a", zone:"tower", sign:""},
+      {id:"cottage", name:"Pip's Cottage", x:1560,y:690,w:180,h:130, wall:"#e3d3ae", roof:"#8a5a3a", zone:"cottage", sign:""},
+      {id:"greta", name:"Greta's Cottage", x:900,y:300,w:170,h:125, wall:"#d8c9a8", roof:"#6d7a4a", zone:"garden", sign:""},
+      {id:"elio", name:"Elio's Workshop", x:1380,y:330,w:150,h:115, wall:"#d5c2a2", roof:"#5d6e7a", zone:"tower", sign:""},
+      {id:"lighthouse", name:"The Lighthouse", x:1815,y:1120,w:95,h:210, wall:"#e8e2d2", roof:"#a03d2a", zone:"harbor", sign:""},
+      {id:"house1", name:"", x:620,y:230,w:130,h:100, wall:"#ddd0b4", roof:"#6b5a49", zone:null, sign:""},
+      {id:"house2", name:"", x:700,y:520,w:120,h:95, wall:"#d8cbae", roof:"#77644e", zone:null, sign:""},
+      {id:"house3", name:"", x:1120,y:640,w:135,h:100, wall:"#e0d2b2", roof:"#6b5a49", zone:null, sign:""},
+      {id:"house4", name:"", x:1240,y:180,w:120,h:95, wall:"#d9cbae", roof:"#77644e", zone:null, sign:""},
+      {id:"house5", name:"", x:560,y:830,w:125,h:95, wall:"#ddd0b4", roof:"#6b5a49", zone:null, sign:""},
+      {id:"house6", name:"", x:1330,y:830,w:130,h:100, wall:"#e0d2b2", roof:"#77644e", zone:null, sign:""},
+      {id:"tavern", name:"The Drowned Gull", x:1180,y:950,w:170,h:120, wall:"#d5c0a0", roof:"#54432f", zone:"harbor", sign:"TAVERN"},
+      {id:"school", name:"Ashmere School", x:690,y:950,w:180,h:120, wall:"#e6d7b8", roof:"#4a6e8a", zone:"market", sign:"SCHOOL"},
+      {id:"boathouse", name:"The Ferry House", x:2120,y:820,w:110,h:80, wall:"#d5c2a2", roof:"#4a6e5e", zone:"harbor", sign:"FERRY"},
+      {id:"mill", name:"The Old Mill", x:2430,y:690,w:200,h:150, wall:"#d9c2a0", roof:"#6e5136", zone:"mill", sign:"OLD MILL"},
+      {id:"orchardcottage", name:"The Twins' Cottage", x:2560,y:230,w:170,h:120, wall:"#e8d9b0", roof:"#7a8a4a", zone:"orchard", sign:""}
+    ];
+    const STALLS=[ /* market square stalls */
+      {x:1010,y:800,w:74,h:44,awning:"#b4552d"},{x:1105,y:806,w:74,h:44,awning:"#3f7d74"},
+      {x:1200,y:800,w:74,h:44,awning:"#c99a3a"},{x:1058,y:872,w:74,h:44,awning:"#7a6a9e"}
+    ];
+    const TREES=[];
+    (function(){
+      const spots=[[140,520],[520,420],[820,180],[1080,300],[1720,520],[1850,640],[760,760],[1010,930],[1460,560],[260,940],[420,1010],[1900,300],[90,180],[1150,470],[650,1080],[2060,300],[2080,620],[2520,1080],[2860,1080],[2920,640],[2050,1560],[1560,1560]];
+      for(const [x,y] of spots) TREES.push({x,y,s:0.8+rng()*0.5,ph:rng()*6.28});
+      for(let i=0;i<26;i++){ const x=60+rng()*1980, y=80+rng()*980;
+        if(BUILDINGS.some(b=>x>b.x-70&&x<b.x+b.w+70&&y>b.y-70&&y<b.y+b.h+70)) continue;
+        TREES.push({x,y,s:0.6+rng()*0.7,ph:rng()*6.28}); }
+    })();
+    const ORCHARD=[]; /* apple rows across the river */
+    for(let r=0;r<4;r++)for(let c=0;c<5;c++){
+      const x=2480+c*112, y=430+r*92;
+      if(x>2520&&x<2780&&y<400) continue; /* keep the cottage clearing */
+      if(x<2700&&y>620) continue; /* keep the mill yard clear */
+      ORCHARD.push({x:x+(r%2)*26,y,s:0.95+rng()*0.3,ph:rng()*6.28});
+    }
+    const PLOTS=[];
+    for(let r=0;r<3;r++)for(let c=0;c<4;c++) PLOTS.push({x:960+c*52,y:500+r*46,w:40,h:32,hue:["#7fae4c","#c96f4a","#e8b34b","#a65d8f"][(r*4+c)%4]});
+
+    const NPCS={
+      maren:{name:"Maren", title:"the baker", x:330,y:420, zone:"bakery", skin:"#f0c8a0", cloth:"#c96f4a", hair:"#7a4a2a", style:"bun", home:{x:330,y:420}},
+      soren:{name:"Captain Soren", title:"the old sailor", x:905,y:1195, zone:"harbor", skin:"#e0b28c", cloth:"#3f5a78", hair:"#d8d4cc", style:"beard", home:{x:905,y:1195}},
+      pip:{name:"Pip", title:"a small boy", x:1620,y:870, zone:"cottage", skin:"#f4cfa4", cloth:"#5d8a4a", hair:"#4a3220", style:"cap", small:true, home:{x:1620,y:870}},
+      greta:{name:"Greta", title:"the gardener", x:1030,y:470, zone:"garden", skin:"#e8b890", cloth:"#6d7a4a", hair:"#c8c2b4", style:"hat", home:{x:1030,y:470}},
+      elio:{name:"Elio", title:"the clockmaker", x:1560,y:445, zone:"tower", skin:"#eec39a", cloth:"#5a4a6e", hair:"#3a3230", style:"tall", home:{x:1560,y:445}},
+      marta:{name:"Marta", title:"the schoolteacher", x:1150,y:930, zone:"market", skin:"#e8b088", cloth:"#7a4a5e", hair:"#2e2a26", style:"bun", home:{x:1150,y:930}},
+      bram:{name:"Bram", title:"the ferryman", x:2185,y:985, zone:"harbor", skin:"#dcab84", cloth:"#4a6e5e", hair:"#8a4a2a", style:"cap", home:{x:2185,y:985}},
+      lottie:{name:"Lottie", title:"one of the twins", x:2620,y:410, zone:"orchard", skin:"#f4cfa4", cloth:"#c25e7e", hair:"#a03d2a", style:"bun", small:true, home:{x:2620,y:410}},
+      lyle:{name:"Lyle", title:"the other twin", x:2680,y:420, zone:"orchard", skin:"#f4cfa4", cloth:"#4a7a9e", hair:"#a03d2a", style:"cap", small:true, home:{x:2680,y:420}},
+      ansel:{name:"Ansel", title:"the miller", x:2560,y:890, zone:"mill", skin:"#e0b28c", cloth:"#6e5136", hair:"#c8c2b4", style:"beard", home:{x:2560,y:890}}
+    };
+    function heartKey(id){ return (id==="lottie"||id==="lyle")?"twins":id; }
+    const DOG={x:1665,y:895,ph:0};
+
+    const LETTERS={
+      L_baker:{id:"L_baker", to:"maren", day:1, title:"A Recipe, Remembered",
+        from:"Wren — her sister, in Millbrook", addr:"Maren Bramble, the Bakery",
+        blurb:"It smells faintly of honey and cardamom through the paper."},
+      L_sailor:{id:"L_sailor", to:"soren", day:1, title:"The Shape of the Sea",
+        from:"The log of the Gullwing, kept by his first mate", addr:"Capt. Soren, the Harbour",
+        blurb:"Salt has stiffened the envelope. Something inside is drawn, not written."},
+      L_pip:{id:"L_pip", to:"pip", day:1, title:"A Name on a Collar",
+        from:"Gran, two valleys away", addr:"Pip, the cottage with the blue door",
+        blurb:"The writing leans, the way grandmothers' writing leans."},
+      L_greta:{id:"L_greta", to:"greta", day:2, title:"What the Garden Was Planting",
+        from:"Tomas, her husband — written the spring he died", addr:"Greta, the garden cottage",
+        blurb:"Nine years in a drawer of the sorting office. The ink has not faded at all."},
+      L_elio:{id:"L_elio", to:"elio", day:2, title:"Half Past Her Voice",
+        from:"Sella, his daughter, far in the north", addr:"Elio, the Clock Tower",
+        blurb:"Postmarked three winters ago. It was never put on a cart."},
+      L_marta:{id:"L_marta", to:"marta", day:3, title:"The Roll Book",
+        from:"Inspector Hale — no relation, she checks every time", addr:"Marta Venn, the Schoolhouse",
+        blurb:"A school roll book, forty names in her own young handwriting, sent back by the county."},
+      L_twins:{id:"L_twins", to:"twins", day:3, title:"For the Twins, Who Argue in Stereo",
+        from:"Their mother, in Millbrook — 'to be read aloud, both of you, together'", addr:"Lottie & Lyle, the Orchard Cottage",
+        blurb:"Two handwritings fight politely inside one envelope."},
+      L_bram:{id:"L_bram", to:"bram", day:4, title:"Forty-Two Crossings",
+        from:"Petra, his sister, across the water in every sense", addr:"Bram Okafor, the Ferry House",
+        blurb:"It lists crossings in a ferryman's ledger-hand. The last page is a question."},
+      L_ansel:{id:"L_ansel", to:"ansel", day:4, title:"The Miller's Hands",
+        from:"The millers' guild, settling an old account", addr:"Ansel Vane, the Old Mill",
+        blurb:"Weights and measures, stamped and sealed. One line is underlined so hard the paper tore."},
+      L_maren2:{id:"L_maren2", to:"maren", day:4, side:true, title:"Cardamom, Again",
+        from:"Wren, again — she writes the way other people breathe", addr:"Maren Bramble, the Bakery",
+        blurb:"A second letter, two days behind the first. Sisters."},
+      L_soren2:{id:"L_soren2", to:"soren", day:4, side:true, title:"Ask Soren About the Whale",
+        from:"Mirek, the first mate — a postscript forty years late", addr:"Capt. Soren, the Harbour",
+        blurb:"The chalkboard was right. There IS a story about a whale."},
+      L_pip2:{id:"L_pip2", to:"pip", day:5, side:true, title:"Biscuit's Birthday",
+        from:"Gran — 'for the dog, technically'", addr:"Pip, the cottage with the blue door",
+        blurb:"There is a small parcel. It smells of sausage. It is not for Pip."},
+      L_you:{id:"L_you", to:"you", day:5, title:"To the Postman of Ashmere",
+        from:"Postmaster Hale — your predecessor", addr:"YOU. The Post Office, Ashmere",
+        blurb:"Your own name, in handwriting you almost recognise."},
+      L_final:{id:"L_final", to:"final", day:5, title:"To Whom It May Concern",
+        from:"Everyone who ever wrote to Ashmere", addr:"Ashmere itself",
+        blurb:"It is heavier than paper should be. It hums, very slightly, like a held note."}
+    };
+    const LETTER_SCENE={L_maren2:"deliver_maren2",L_soren2:"deliver_soren2",L_pip2:"deliver_pip2",L_twins:"deliver_twins"};
+
+    /* memory fragments: where = town | basement | lighthouse (coords are scene-local off-town) */
+    const FRAGMENTS=[
+      {where:"town",x:180,y:600,text:"A child's drawing of a house — but the windows are lit from inside, in yellow crayon worn to the paper."},
+      {where:"town",x:560,y:330,text:"A shopping list, in careful handwriting: flour, honey, cardamom, and — underlined twice — don't forget the cardamom."},
+      {where:"town",x:880,y:150,text:"A brass button off a harbour coat. Still threaded, as if the coat is holding its breath nearby."},
+      {where:"town",x:1180,y:390,text:"Half a photograph. A wedding. The other half has been folded away so often the crease is soft as cloth."},
+      {where:"town",x:1740,y:470,text:"A pocket watch, stopped at half past six — but the second hand still twitches, once, when you pick it up."},
+      {where:"town",x:1450,y:700,text:"A dog's lead, hung on a gate. The gate is worn smooth where small hands have swung on it for years."},
+      {where:"town",x:760,y:900,text:"A kite string, tangled in a fence, still pointing up — as if it remembers the way the wind goes."},
+      {where:"town",x:1080,y:1010,text:"A tavern chalkboard: SOUP OF THE DAY, and under it, in smaller chalk: ask Soren about the whale."},
+      {where:"town",x:300,y:1060,text:"A postcard never sent: 'The light here is — ' and then nothing, as if the word for it went first."},
+      {where:"town",x:1960,y:760,text:"A swing, still swinging very slightly, though there is no wind and has not been for some time."},
+      {where:"basement",x:300,y:200,text:"A seed packet, empty, labelled in pencil: 'For Greta, when the ground softens.'"},
+      {where:"basement",x:620,y:420,text:"A shelf of jars, each labelled in a dead postman's hand: UNSENT — SORRY. UNSENT — SORRY. UNSENT —"},
+      {where:"town",x:1300,y:720,text:"A school prize ribbon, faded to the colour of weak tea: SPELLING, FIRST PLACE, and a name the whole town once cheered."},
+      {where:"town",x:2780,y:300,text:"An apple core, fresh, on the orchard wall — as if whoever ate it only just stepped behind a tree."},
+      {where:"town",x:2500,y:620,text:"A millstone's shadow at noon points at a name carved forty years ago: C. VANE, KEEPER. Someone has scratched at it, lately, with a nail."},
+      {where:"town",x:2200,y:480,text:"Ferryman's tokens in the grass, a whole spilled purse of them — each stamped with a date, all the same date."},
+      {where:"town",x:1980,y:1560,text:"Down on the cliff path, a carving in the rock: a lamp, and under it two sets of initials, worn almost smooth by thumbs."},
+      {where:"town",x:2480,y:1080,text:"A child's paper boat, bone dry, a mile from the river — with a passenger list written inside, in a twin's hand."},
+      {where:"basement",x:1300,y:480,text:"In the tunnel dark: a lunch tin, a cap, a thermos — a sorting clerk's whole shift, left mid-sip in 1986 and never reclaimed."},
+      {where:"lighthouse",x:130,y:600,text:"A keeper's log page, loose: 'Lamp lit. Sea calm. She would have laughed at the gulls today.' The hand shakes on 'she'."}
+    ];
+    const FRAG_TOTAL=FRAGMENTS.length;
+
+    /* torn letters: gather the scraps, then mend the strips in order */
+    const SCRAPS=[
+      {id:"A1",letter:"A",where:"town",x:1050,y:580,text:"Scrap of a letter, washed pale green, like something kept in a garden apron."},
+      {id:"A2",letter:"A",where:"town",x:1250,y:845,text:"Scrap of a letter under a market stall, held down by a stone, as if someone meant to come back for it."},
+      {id:"A3",letter:"A",where:"basement",x:1300,y:330,text:"Scrap of a letter in the tunnel archive, filed — filed! — under L, for 'lamp', or for 'lost'."},
+      {id:"B1",letter:"B",where:"town",x:1750,y:1500,text:"A page corner on the cliff path, weighted with a pebble, facing the lighthouse like it's watching it."},
+      {id:"B2",letter:"B",where:"lighthouse",x:390,y:620,text:"A page corner tucked behind the lamp-room door, where only someone who climbs daily would think to look."},
+      {id:"B3",letter:"B",where:"basement",x:1130,y:480,text:"A page corner in the tunnels, folded twice, the way a thing is folded when it is meant to be carried against the heart."}
+    ];
+    const TORN={
+      A:{title:"A Torn Letter — 'For Corin, at the Lamp'",
+        strips:["My dearest Corin — by the time this reaches the Point, the doctors here will have told me what I already know, so let me say it while my hand is steady:",
+          "You will want to keep the lamp for me. Don't. A lamp kept for the dead goes out by inches, and a keeper who watches the dark for a face will miss the ships.",
+          "So light it for the living, love. Light it badly, light it grieving, but light it — and if a letter of mine ever comes late to Ashmere, carry it kindly. We were always a town that said things by post.",
+          "— E. Vane, Millbrook, the winter of the big ice."],
+        hint:"E. Vane wrote to her husband the keeper. Mend it, and Ashmere's silence has a name and a face."},
+      B:{title:"A Torn Page — the Postman's Own",
+        strips:["Journal of J. Amos, postman, age nine, entry one: Today the packet boat did not come in and Mama cried in the sorting office where she thought the shelves would hide it.",
+          "Entry two: I have decided to learn the whole town. Every name, every door, every dog. If I hold them all, none of them can be lost the way Papa was lost. This is a sound plan and I am sticking to it.",
+          "Entry three (much later, adult hand): The plan worked. That is the terrible part. It worked, and it is eating the holder. I can name two hundred neighbours and not my father's face.",
+          "Final entry, unsigned: Whoever finds this — a mind full of other people has no room to empty. It also has no room left for itself. Remember me to myself, if you can."],
+        hint:"Some pages in the cellar were never addressed to the town at all."}
+    };
+
+    /* postman ranks & stamps */
+    const RANKS=[{p:0,n:"Relief Runner"},{p:30,n:"Postman"},{p:75,n:"Senior Postman"},{p:130,n:"Keeper of Letters"},{p:200,n:"Postmaster of Ashmere"}];
+    const STAMPS=[
+      {id:"first",label:"First Delivery",test:S=>S.lettersDelivered>=1},
+      {id:"river",label:"River Crosser",test:S=>!!S.crossedRiver},
+      {id:"sorter",label:"True Sorter",test:S=>S.totalSortCorrect>=18},
+      {id:"mender",label:"Mender of Letters",test:S=>!!(S.mended.A||S.mended.B)},
+      {id:"keeper",label:"Memory-Keeper",test:S=>S.fragCount>=12},
+      {id:"truth",label:"Truth-Teller",test:S=>!!S.confessSeen},
+      {id:"heart",label:"A Full Heart",test:S=>Object.keys(S.hearts).some(k=>S.hearts[k]>=3)},
+      {id:"route",label:"The Whole Route",test:S=>S.lettersDelivered>=9}
+    ];
+    /* sorting mini-game address pool: bin per card */
+    const SORT_BINS=["Old Town","Market & School","Harbour & Point","Across the River"];
+    const SORT_POOL=[
+      {addr:"Maren Bramble — the Bakery",note:"Smells of honey through the paper.",bin:0},
+      {addr:"Capt. Soren — the Harbour",note:"Salt-stiff. A drawing inside, not writing.",bin:2},
+      {addr:"Marta Venn — the Schoolhouse",note:"County postmark. Official, and therefore late.",bin:1},
+      {addr:"The Twins — the Orchard Cottage",note:"Addressed to both. It will start an argument.",bin:3},
+      {addr:"Ansel Vane — the Old Mill",note:"Guild seal. Heavy for its size.",bin:3},
+      {addr:"Bram Okafor — the Ferry House",note:"The stamp is from just across the water.",bin:2},
+      {addr:"Elio — the Clock Tower",note:"Postmarked three winters ago. Don't ask.",bin:0},
+      {addr:"Greta — the garden cottage",note:"A seed catalogue, by the rattle of it.",bin:0},
+      {addr:"The Drowned Gull — the Tavern",note:"The inn takes everyone's strays.",bin:2},
+      {addr:"Pip — the cottage with the blue door",note:"The writing leans, grandmother-wise.",bin:2},
+      {addr:"Schoolhouse — the bell tower box",note:"For the prize cupboard key. Again.",bin:1},
+      {addr:"Widow Pell — Mill Lane, east bank",note:"'East bank' settles it.",bin:3},
+      {addr:"The Market Warden — the Square",note:"Stall fees, presumably. Or a complaint about geese.",bin:1},
+      {addr:"Hale's Cottage — Church Row",note:"Nobody has lived there in years. It still gets post.",bin:0}
+    ];
+
+    /* ---------------- dialogue scenes ---------------- */
+    const N="narr"; /* narrator speaker key */
+    const SCENES={
+      intro:[
+        [N,"Ashmere. Population: two hundred and eleven, and every one of them forgetting."],
+        [N,"It began gently. A name misplaced. Then recipes. Then the way home. Then faces."],
+        [N,"The doctors call it the Grey Drift. The town calls it nothing — most days they can't recall there's anything wrong."],
+        [N,"You are the last postman. Your letters — carried by hand, read aloud at the door — are the one thing that brings a memory back."],
+        [N,"Three letters today. Three neighbours. Start with whoever you like — the satchel knows the way."],
+        ["you","Right. Boots on. Satchel shut. Ashmere, let's see what we can save."]
+      ],
+      deliver_maren:[
+        ["maren","Oh — the bell. Forgive me, I was just standing here looking at the ovens. I know they're for something. Everything's warm and it smells like — like —"],
+        ["you","Maren. It's me. Letter for you — from Wren. Shall I read it?"],
+        ["maren","Wren... Wren. My sister Wren? Read it. Please. Quickly, before the warm goes away."],
+        [N,"\"Maren — you once made a vow that no one in Ashmere would ever breakfast sadly. Honey-cardamom buns, sister. Page one of you. Two spoons of cardamom. You always said three was showing off.\""],
+        ["maren","Three was showing off! It was! Oh — oh, the ovens. The OVENS. Stand back, postman, stand back —"],
+        [N,"Flour first. Then the smell — cardamom, honey, warm butter — rolling out of the bakery door like a tide coming home."],
+        ["maren","Buns at four o'clock, tell everyone! Tell — tell whoever anyone is! I remember the buns. I remember WREN."],
+        ["you","One down. The window's lit. Look at that — the street remembers the bakery too."]
+      ],
+      deliver_soren:[
+        ["soren","Mind the gulls. ...There are gulls, aren't there? I stand here every morning and I look at the — the flat grey — and I think: I used to know its name."],
+        ["you","Captain. Letter for you. It's the Gullwing's log — your first mate kept it all these years. There's a drawing."],
+        ["soren","The Gullwing. The Gull— say it again. Slower. A man should hear his own ship properly."],
+        [N,"\"Day forty-one. The Captain stood in a blow off Harrow Point and laughed like the sea owed him money. For the record: the sea is not a thing you cross. It is a thing that agrees, briefly, to hold you up.\""],
+        ["soren","Ha! HA! That's — that's MIREK, that's his hand, that's — the sea. THE SEA. Look at it! It's not flat, it's not grey, it's —"],
+        [N,"The harbour comes back all at once, the way a held breath lets go: blue on blue, gulls inventing themselves out of the light."],
+        ["soren","Forty-one days and not one of them wasted. Thank you, postman. You've handed me back my whole life in an envelope."]
+      ],
+      deliver_pip:[
+        ["pip","Mister Postman. Can I ask you something and you won't laugh? There's a dog. He lives at our house. He sleeps on my feet."],
+        ["pip","But I can't remember his name, and he won't tell me, he just looks at me like — like *I* forgot on purpose."],
+        ["you","Pip... letter for you. From your Gran. I think she's answered you."],
+        [N,"\"Pip — you named him the day he came home in your father's coat pocket, all ears. BISCUIT, you said, because he was the colour of one and twice as crumbly. He answers to it. He always will.\""],
+        ["pip","BISCUIT! Biscuit, Biscuit — that's it, that's your name, you KNOW that's your name —"],
+        [N,"The dog erupts. Somewhere between the barking and the laughing, the cottage door turns blue again, the way it always was."],
+        ["pip","He remembered me the whole time, Mister Postman. He was just waiting for me to catch up."]
+      ],
+      day1_end:[
+        [N,"Three letters. Three lit windows. The town is not saved — but tonight, for the first time in months, Ashmere smells of bread."],
+        [N,"You hang the satchel on its hook. Outside, the grey leans against the glass like something patient."],
+        ["you","Tomorrow, then. Whoever's left — I'll find them."]
+      ],
+      day2_start:[
+        [N,"Day two. The bread is still warm — but the harbour, this morning, looked... thinner. As if the blue were a coat the sea was only borrowing."],
+        ["you","The forgetting is speeding up. Restored things are slipping. I can feel it in my teeth, like a change in the weather."],
+        [N,"Two letters in the satchel that were never on yesterday's cart. Old paper. Older postmarks. The sorting office drawer was open when you arrived — though you never open it."]
+      ],
+      deliver_greta:[
+        ["greta","Careful of the beds. I dig, and I plant, and by evening I can't say what went in the ground. The earth keeps my secrets better than I do."],
+        ["you","Greta. This one's old. Nine years old. It's from Tomas."],
+        ["greta","Tomas. My Tomas? ...He's been gone nine years. How can a letter be from a — read it. READ it, don't stand there holding my heart in an envelope."],
+        [N,"\"Greta — if you're reading this, the garden's gone quiet and so have I. Plant the tall ones at the back, love: hollyhocks for June, sunflowers for August. Water in the evenings. Talk to them. They were always better listeners than me, and I was devoted practice.\""],
+        ["greta","Hollyhocks at the back. Sunflowers for August. He wrote it down. All those years I thought it was lost — it was just... unposted. In a drawer. Waiting."],
+        [N,"And the garden — the garden does not so much bloom as surrender: green first, then gold, then a red so glad it is almost a sound."],
+        ["greta","Nine years he waited in the dark to tell me where the sunflowers go. You carried him the last hundred yards, postman. Thank you."]
+      ],
+      deliver_elio:[
+        ["elio","The tower clock stopped at half past six and I wind it every night regardless. A stopped clock is a liar twice a day — did I tell you that joke? Did I ever tell anyone that joke?"],
+        ["you","Elio. Letter. From Sella — your daughter. It's three winters old. I'm sorry. I'm sorry it took —"],
+        ["elio","Three winters. ...Read it, postman. A clockmaker has no quarrel with time, only with silence."],
+        [N,"\"Papa — stop listening for the chime and listen for this instead: I am well. The north is white and honest. I laugh every day, and every time, it is your laugh first. Half past six, Papa. That's when I call. You built the clock — you set the time I'm calling IN.\""],
+        ["elio","Half past six. She set it. It wasn't broken — it was a telephone, and I — oh, Sella. Oh, my girl. Wind it. WIND IT, postman, we have three winters of half-past-sixes to catch up on."],
+        [N,"The tower wakes with a sound like a held note finally allowed to land. Across Ashmere, heads lift at the chime before they know why."],
+        ["elio","There. Now the town knows what time it is. And so, at last, do I."]
+      ],
+      basement:[
+        [N,"The cellar of the post office. You have worked above it for six years and never once come down."],
+        [N,"Shelves. Then more shelves. Letters — hundreds, thousands — sorted, stamped, and never carried out the door. The oldest postmark is from before you were born."],
+        ["you","All this time. It wasn't that people stopped writing. It's that the post... stopped. Year by year. Letter by letter."],
+        [N,"A note is pinned to the last shelf, in handwriting you almost recognise:"],
+        [N,"\"Day 214. I can feel the Drift in my own hands today — I sorted the Millbrook letters into the sea-chest and I cannot think why. If you are reading this, it has taken the post office too. Whoever you are: the letters were never the cure. Read the last page of this ledger. — H.\""],
+        ["you","Hale. Postmaster Hale — the one before me. He knew. He KNEW and he still kept sorting."],
+        [N,"You stay until the light through the cellar vent goes amber. Some of what Ashmere forgot is down here, in the dark, in envelopes — still warm, somehow, with being meant."]
+      ],
+      tunnels:[
+        [N,"Beyond the last shelf, the cellar doesn't end — it narrows into the old sorting tunnels, dug when the post came by boat and everything urgent went under the town."],
+        [N,"Drips. Dust. A clerk's lunch tin from 1986, left mid-sip. And at the far end, a lectern with the office ledger, swollen with damp, open at its last page."],
+        ["you","Hale said: read the last page of the ledger. Whatever the post office was hiding from itself — it's down here."]
+      ],
+      ledger:[
+        [N,"The ledger's last page, in Hale's hand — not the tidy office hand. The real one:"],
+        [N,"\"The Drift has a birthday. The winter of the big ice, forty years ago, the packet boat went on the rocks off the Point with a year of east-bank letters in her hold — and Corin Vane's lamp, for the first time in thirty years, was dark.\""],
+        [N,"\"Ask why and the town goes quiet. I have stopped asking. That quiet IS the Drift: a town is a story it tells itself, and Ashmere left one chapter out — so the book began, politely, to lose the rest.\""],
+        [N,"\"The sea-chest came up in the spring thaw. It is down here, where I put it, because I could not decide either. Forty years of unsaid things, postman. One day the route will have to carry them. — H.\""],
+        ["you","A birthday. The forgetting has a BIRTHDAY. And a name — Vane. The keeper's name was Vane."],
+        ["you","There's a miller on the east bank with that name. A miller who weighs flour to the gram and claims he can't remember breakfast."]
+      ],
+      fading:[
+        [N,"It starts while you are standing in the square: the bakery window dims — not dark, just less sure of itself. Maren is at the glass, pressing her palm to it, frowning at the street like a word on the tip of her tongue."],
+        ["you","The Drift is taking back what the letters gave. Unless — unless someone goes and stands in the memory with them. Again. Every day, if that's what it takes."],
+        [N,"You can re-anchor a fading neighbour by visiting them. It won't hold forever. Nothing does. It holds for now — and 'for now', multiplied, is a life."]
+      ],
+      reanchor_maren:[
+        ["maren","Postman — the buns. I had them, I had them at the tip of — two spoons or three? It MATTERS, if it doesn't matter then nothing —"],
+        ["you","Two spoons, Maren. Three was showing off. Wren's words. Say it back to me."],
+        ["maren","Two spoons. Three was showing off. ...There it is. There it IS. Oh, you are a wicked wonderful route to walk, postman. Buns at four. Tell everyone."]
+      ],
+      reanchor_soren:[
+        ["soren","Postman. The flat grey came back in the night and sat on the harbour like a debt. Tell me true — did I ever really —"],
+        ["you","Day forty-one, Captain. Off Harrow Point. You laughed like the sea owed you money. Mirek wrote it down."],
+        ["soren","...And the sea agreed, briefly, to hold me up. HA. There she is. There she IS. Blue as a kept promise. Thank you, lad. Thank you."]
+      ],
+      reanchor_greta:[
+        ["greta","Postman, the beds have gone — not gone, they're here, I can SEE them, but the order of them, the plan of them — Tomas had a plan and it's slipped between the rows —"],
+        ["you","Tall ones at the back, Greta. Hollyhocks for June, sunflowers for August. Water in the evenings. Talk to them."],
+        ["greta","Talk to them — they were always better listeners than him, and he was DEVOTED PRACTICE. Oh. Oh, there it all is. You're a good shelf to lean a memory on, postman."]
+      ],
+      reanchor_elio:[
+        ["elio","The chime didn't — I wound it, I swear I wound it, but this morning it said half past six and meant NOTHING, just a time, just a noise —"],
+        ["you","Half past six is when Sella calls, Elio. From the north. White and honest. You set the time she's calling in."],
+        ["elio","I SET — oh. OH. There she is. There's my girl, in the mechanism. Stand still, postman, the whole tower is about to remember out loud."]
+      ],
+      day2_end:[
+        [N,"The tower chimes half past six, and somewhere in the north a woman is laughing in her father's laugh, and here a clockmaker is listening with his whole face."],
+        [N,"But down in the cellar, past the last shelf, the tunnels go on further than your lamp likes — and the post, it seems, is not finished showing you its secrets."],
+        ["you","A school roll book. A letter for twins I've never delivered to. And a river I've never crossed with the bag on my back. Tomorrow the route gets longer."]
+      ],
+      day3_start:[
+        [N,"Day three. The river is running high and green, and Bram the ferryman is watching you over his oars like a man timing a tide."],
+        [N,"Across the water: orchard, mill, and a cottage where two small people are already arguing — you can hear it from the west bank. Some things the Drift hasn't touched. Volume, for instance."],
+        ["you","The east bank, then. Marta at the schoolhouse first — no. Whoever I like. The satchel knows the way, and Bram knows the river."]
+      ],
+      deliver_marta:[
+        ["marta","Mind the step, it's worn where forty years of children — children whose names I — stand still. Let me look at you. You were in my class. Weren't you? WEREN'T you?"],
+        ["you","Everyone was in your class, Marta. Letter for you — the county sent back your old roll book. Your own handwriting. Forty names."],
+        ["marta","My roll book? They kept it? Read the first page. If I wrote them, they're mine, and if they're mine I — read it, postman."],
+        [N,"\"Venn, M., form mistress. Register: Adey, T. — bright, hums. Amos, J. — quiet, carries things for others. Bram—\" her voice catches: \"—Bram, O. — will row anything, anywhere, for anyone.\""],
+        ["marta","Amos. Little Jude Amos, who carried the ink so it wouldn't spill on the others. And Bram, and Tomas, and — oh, I taught this whole town to read, postman. I taught them to read and then I lost the register of them."],
+        [N,"She reads the forty names aloud to the empty classroom, in register order, answering 'present' for each one herself, in forty remembered voices. The school bell, untouched for years, gives one soft note — agreeing."],
+        ["marta","Present. All present. Send the county my thanks and tell them the school is OPEN — anyone who wants their name back can come and sit in their old desk."]
+      ],
+      deliver_twins:[
+        ["lottie","A POSTMAN. Lyle, a postman, on THIS bank, with an actual LETTER —"],
+        ["lyle","It's for mother, obviously, everything's for mother, she collects us like—"],
+        ["lottie","It's addressed to US, Lyle, it says 'the twins, who argue in—' READ IT, postman, read it before he explains it wrong."],
+        ["you","\"To be read aloud, both of you, together.\" Ready? \"My darlings — Lottie, you were first by four minutes and have never once let it rest. Lyle, you were second and have been early for everything since, out of spite. The orchard was your grandfather's. The rows run north, the sweet ones by the wall—\""],
+        ["lyle","The sweet ones by the WALL. I KNEW that. I knew that in my bones and couldn't—"],
+        ["lottie","Grandfather's rows. And the — the picking song, Lyle, the one about the ladder —"],
+        [N,"They finish the letter together, finishing each other's sentences, which — you will think about later — is its own kind of memory: a story held in two places at once, so neither can drop it."],
+        ["lyle","Stay for cider. That's not a question. Lottie, tell him it's not a question."]
+      ],
+      keeper_plate:[
+        [N,"Up close, the lighthouse is older than the town's politeness. Sea-wet iron. A gull with seniority. And on the lamp-room door, a maker's plate, green with age:"],
+        [N,"\"VANE & SON, KEEPERS. EST. THE WINTER OF THE BIG ICE.\" Below it, scratched by hand, much later: \"Lamp lit every night since. Ask the miller why once is enough.\""],
+        ["you","Keepers. Vane. The same name as the miller across the river — and the same name the ledger couldn't stop circling."],
+        ["you","Someone in Ashmere has been keeping this lamp's secret for forty years. And I have a feeling his hands remember more than his mouth admits."]
+      ],
+      day3_end:[
+        [N,"Forty names, read aloud in an empty classroom. A letter finished in stereo. The east bank is colour tonight — orchard red, mill gold, the river carrying both downstream."],
+        [N,"But the ledger's question sits in the satchel like a stone: why was the lamp dark, once, in forty years?"],
+        ["you","Tomorrow I deliver to the ferryman. And to a miller named Vane, whose hands, everyone says, have never once forgotten a weight."]
+      ],
+      day4_start:[
+        [N,"Day four. The Drift is bolder now — Greta's garden was grey at dawn and Elio's chime came late. What's restored must be re-stood-with. That's the work. That's always been the work."],
+        [N,"Two letters today: one for the man who rows everyone and is carried by no one. One for the miller. And two more besides, if your legs and heart allow — old friends, second letters. The town writes back, it turns out, once it remembers how."],
+        ["you","Bram first, or Ansel. The river, or the reckoning. The satchel knows the way."]
+      ],
+      deliver_bram:[
+        ["bram","Mind the rope, mind the step, mind nothing else — the river does the minding. Letter? For me? Postman, nobody writes to the ferryman. I AM the delivery."],
+        ["you","Petra writes to you. Your sister. Forty-two crossings, Bram — she's been counting yours her whole life. Shall I read it?"],
+        ["bram","Forty-two... She was eight when she started that count. Read it. Slowly. The river can wait; it's waited for worse."],
+        [N,"\"Bram — crossing one: you rowed me to school with my shoes in a bucket so they'd stay dry. Crossing twelve: the night the ice sang. Crossing thirty: you rowed Father's coffin and would not take the fare. Crossing forty-two is this letter, brother. My question is #42 as well: when do YOU get carried?\""],
+        ["bram","...She kept the coffin crossing in the count. Of course she did. Petra counts true."],
+        ["bram","Forty years I've rowed this town across and called it nothing. Take the oars a moment, postman. Just — a moment. Let me be the passenger. I seem to have forgotten how, and it's the only thing I ever forgot."],
+        [N,"You row him fifty yards, badly, in circles, and he laughs like a boy with his shoes in a bucket — and the river, briefly, is the brightest thing in Ashmere."]
+      ],
+      deliver_ansel:[
+        ["ansel","Flour's short this week. Everything's short. State your — a letter. For me. From the GUILD? Who in this town writes to the guild about— give it here. No. Read it. My hands are — read it."],
+        ["you","\"Ansel Vane, miller. The guild settles its old account: the winter of the big ice, you carried flour on your back across the frozen river for nine days, refusing payment, and the guild has carried the debt forty years. The line underlined—\" Ansel. The underlined line is ab—"],
+        ["ansel","Enough. ENOUGH. I know what the line is. 'The keeper's son kept the town fed.' They would put it in WRITING. They would make me carry it in an envelope."],
+        ["you","The keeper's son. Corin Vane was your father."],
+        ["ansel","...Forty years I have weighed flour to the gram, postman. My hands remember EVERYTHING. Every sack, every stone, every measure since I was twelve years old. Do you understand what I'm telling you?"],
+        ["you","You remember. You've always remembered. The forgetting — you faked it."],
+        ["ansel","Faked it. Hid in it. When the Drift came it was a — a mercy with my name on it. Because the one thing I cannot carry is the question this town asks with its eyes: why was your father's lamp dark the night the packet went down? Sit down, postman. You've carried heavier. Hear it from a Vane at last."]
+      ],
+      ansel_confess:[
+        ["ansel","My mother died in Millbrook hospital that winter. The letter telling him came to the lighthouse at dusk — I carried it up the cliff myself, proud as a flag. Corin read it standing in the lamp room."],
+        ["ansel","And then he just... sat down in the dark, with the lamp unlit, and held it. All night. A man who had lit that lamp eleven thousand nights sat in the dark ONE night, grieving — and the packet boat, with a year of letters and nine souls and your father at her wheel, Jude, found the rocks instead of the light."],
+        ["you","My father. Amos. The packet captain was — that's how you know my name."],
+        ["ansel","Boy, I taught you to skip stones. Your father was my dearest friend, and my father's grief drowned him, and this town — this kind, polite town — decided in one night, without a meeting, without a word, to never speak of it again. That's the Drift's birthday. Silence, postman. Forty years of it, compounding like interest."],
+        ["ansel","Corin lit the lamp every night after. Eleven thousand and one. It changed nothing and he knew it. When he died I took the mill, took the secret, took the grey when it came like a cloak I had EARNED."],
+        ["ansel","But you — you've been rowing this town back one letter at a time, and I find I am tired of being the only man in Ashmere who remembers alone. The sea-chest, postman. Hale kept it in the cellar tunnels. Every letter off that boat. If the town is to remember, it should remember ALL of it — from the beginning. I'll stand in the square and say my piece, if you'll carry the chest up with Bram. That's my confession and my condition both."]
+      ],
+      deliver_maren2:[
+        ["maren","Wren AGAIN? Two letters in four days — she's showing off, that's what that is. Three spoons of showing off. Read it, read it, the ovens can mind themselves."],
+        [N,"\"Maren — second letter, because the first one worked and I am not too proud to repeat a miracle. News from Millbrook: the new road is in, the mill pond froze in a perfect circle, and I have decided, at my age, to come home for the winter. Keep the spare bed aired, sister. Somebody has to tell you when you're showing off, in person.\""],
+        ["maren","She's coming HOME. This winter. Oh — the spare bed, the good quilt, the — postman, write this down somewhere official: Maren Bramble is expecting COMPANY."],
+        [N,"She says it like a queen announcing a state visit, flour to the elbows, and the bakery windows steam with something that is not entirely the ovens."]
+      ],
+      deliver_soren2:[
+        ["soren","Postman! Tell me that's what I think it is. The handwriting — Mirek's been dead ten years and his hand still looks like a rope being thrown. Read it."],
+        [N,"\"Soren — the postscript I never wrote in the log, for the chalkboard's sake: the whale, off Harrow Point, day forty-one. She surfaced alongside for an hour, eye at the rail, looking at you like an old landlord checking the property. You took your hat off to her. The crew saw. We never let you forget it because we never wanted to. THAT's the story. Ask me about the whale any time. — M.\""],
+        ["soren","I took my hat off. I TOOK MY HAT OFF TO A WHALE and nine men watched me do it sober. HA! Postman, the chalkboard stays. Write it bigger."]
+      ],
+      day4_end:[
+        [N,"That night you try an experiment. You sit in the sorting office and you try to picture your mother's face — the woman who cried among the shelves when the packet didn't come in."],
+        [N,"You get her hands first. Then her laugh, from another room. Then — the face won't come. You reach for it the way you've reached for two hundred neighbours' faces all week, and yours is the one drawer that sticks."],
+        ["you","The immunity has a price list, and it's been charging me by the letter. A mind full of other people... has no room left for itself."],
+        ["you","There's a letter in the building with my name on it. Hale's. Tomorrow I'll read what a postman is for — and what it costs. Tomorrow the route ends one way or another."]
+      ],
+      day5_start:[
+        [N,"Day five. The light comes up grey and stays grey, like the town is holding very still."],
+        [N,"The letter with your name on it is in the satchel. It has been waiting longer than you have been alive to receive it. Open the satchel when you're ready."]
+      ],
+      read_you:[
+        [N,"\"To the Postman of Ashmere — whoever holds the route when this is found.\""],
+        [N,"\"My name was Hale. I carried this town's letters for forty years, and I have worked out, at the end, what the Drift is. It is not a sickness, postman. It is a debt.\""],
+        [N,"\"A town is a story its people tell each other. Every unposted letter is a sentence never said. Ashmere stopped saying itself — so Ashmere began, politely, to stop.\""],
+        [N,"\"You ask why you are immune. You aren't, entirely. But a postman reads every address. You carry two hundred lives in your head, by name, by door, by dog. A mind that full of other people has no room to empty. That is the whole secret. It was never magic. It was the route.\""],
+        [N,"\"Enclosed is the last letter in the office. It is addressed to Ashmere itself — every unsaid sentence, bound into one. I never dared deliver it. What it asks is too heavy for a town to remember all at once — and too heavy, perhaps, to leave forever in the dark.\""],
+        [N,"\"So I leave the choice with the route, as the route was left to me. Light it in the lighthouse lamp, and Ashmere will remember EVERYTHING — the weddings and the whale, and the graves too. All of it. Forever.\""],
+        [N,"\"Or return it to the office, unopened, and let the town keep only what it can carry — remembering forward, a day at a time, with you walking it back to them each morning for as long as your legs allow.\""],
+        [N,"\"Either way, postman: thank you for reading the addresses. — Hale, Postmaster. Retired by the Drift.\""],
+        ["you","...Beneath it, in the same envelope, the last letter. Heavy as a held note. Addressed to Ashmere itself."],
+        ["you","Light it, or return it. The whole town, forever — or the route, every morning, for as long as I can walk it. Hale... you might have just DECIDED, you know. But I suppose that's what the last postman is for."],
+        ["you","And if Ansel keeps his word — if Bram rows out with me — there's a third way Hale never lived to weigh: begin at the beginning. The chest. The first unsaid things, said at last."]
+      ],
+      deliver_pip2:[
+        ["pip","Mister Postman, Gran wrote to the DOG? The dog can't READ. — wait. That means I have to read it TO him. That's a job. That's an official job. Read it with me. Slowly. He's old."],
+        [N,"\"Biscuit — happy birthday, you excellent thief. Six years since the coat pocket. There is sausage in the parcel, which is yours, and a new collar, which is also yours, and my love, which was always yours. Pip: the sausage is the dog's. This is legally binding. — Gran.\""],
+        ["pip","Legally binding, Biscuit. LEGALLY. BINDING. You heard it. Half the sausage is — no. NO. The letter is clear and I am a man of the law."],
+        [N,"He gives the dog the whole sausage, in the end, in pieces, reading the letter aloud twice more because Biscuit likes the sound of his name in an official document."]
+      ],
+      mendA:[
+        [N,"Four scraps, one letter: E. Vane, writing from a hospital in Millbrook to the keeper at the lamp — the letter Ansel carried up the cliff path as a boy."],
+        [N,"It was never delivered. Not lost — withheld, by a post office that decided, in one winter, that some news was too heavy to carry. The first unsaid sentence. The Drift's first stitch."],
+        ["you","\"Light it for the living, love. Light it badly, light it grieving, but light it.\" She TOLD him. She told him exactly, and the office kept it in a drawer for forty years."],
+        ["you","Well. Not anymore. This one gets read aloud at the lamp tonight, to whoever the sea can hear. Consider it delivered, E. Vane. Consider it carried kindly."]
+      ],
+      mendB:[
+        [N,"Your own hand, at nine years old, in pencil gone soft: a journal. A plan. A boy deciding that if he held the whole town in his head, none of it could be lost the way his father was lost."],
+        ["you","Jude Amos. That's my name. I sound — I sound like someone I'd deliver to. Someone I'd stand in the memory with."],
+        ["you","Entry three says the plan is eating the holder. Entry four asks to be remembered to myself. All right, young Jude. Message received. Forty years late, but the post round here was never quick."],
+        [N,"You stand a while in the tunnel dark, being one of your own neighbours — a person with a name, a door, a dog he used to know. It is, you find, a delivery like any other. It blooms."]
+      ],
+      lighthouse_top:[
+        [N,"The lamp room. One hundred and twelve steps, and every one of them worn where a keeper's boot turned for the view."],
+        [N,"The lamp itself is cold, patient, enormous — built to be seen by people in the worst hour of their lives. Below: all of Ashmere, grey and gold, holding its breath."],
+        ["you","Eleven thousand nights, Corin. Let's see if we can't make it eleven thousand and two."]
+      ],
+      mill_store:[
+        [N,"The mill store, open at midday only — Ansel keeps hours the way he keeps weights: exactly. Sacks in rows. A scale that has never once lied."],
+        ["ansel","Postman. You walk in at midday, you walk out with flour on your boots; that's the whole transaction history of this store. ...You have your father's tread, you know. Heavier on the left. Like the world's slightly uphill that way."],
+        [N,"He says it to the scale, not to you. Some memories in Ashmere are only ever delivered sideways."]
+      ],
+      school_door:[
+        [N,"The schoolhouse door, morning only — Marta unlocks it at dawn and locks it at noon sharp, forty years of habit the Drift never managed to eat."],
+        ["marta","In, in — no, wait, you're grown, I keep forgetting you're — sit at the big desk. The teacher's desk. You've earned a sit at the big desk, Jude Amos, whatever the register says."]
+      ],
+      nook_tree:[
+        [N,"The hollow oak at the orchard's edge is older than the rows, and hollow in the way of a kept promise: inside, dry as a drawer — a tin box."],
+        [N,"Inside the tin: forty-two ferryman's tokens, a spelling ribbon, and a note in a child's hand: \"For safekeeping. The town forgets. Trees don't. — L. & L., aged 8¾\""],
+        ["you","The twins have been running a memory bank since they were eight. Of course they have. Of course the argument twins built the vault."]
+      ],
+      nook_pier:[
+        [N,"Under the pier, at low water, someone has built a tiny shrine of salvage: a ship's bell the size of a thimble, a cork, a button — each labelled in pencil on the wood above."],
+        [N,"The newest label, in a hand you almost recognise: \"For the ones the sea is still deciding about. Ring if needed.\" You don't ring it. Some deliveries are still in transit."]
+      ],
+      nook_millrace:[
+        [N,"Behind the mill, where the race runs fast and loud, the noise covers a small stone bench — the one place in Ashmere you cannot be overheard remembering."],
+        ["ansel","Found my thinking bench, then. Forty years I've sat there saying my father's name where only the water could hear it. Water keeps a secret, postman. That's the whole trouble. Water keeps it forever, and charges the town interest."]
+      ],
+      ending_light:[
+        [N,"The lamp takes the letter the way the sea takes a river — completely, and all at once."],
+        [N,"Light goes out over Ashmere — and memory goes with it, door by door, name by name, grave by grave. Soren stands on the pier and remembers his wife's face AND the winter they buried her, and holds both, weeping, upright, like a man holding a full sail."],
+        [N,"Maren burns the first batch of buns because she is laughing too hard at a joke Wren told in 1987. Elio's clock chimes and chimes. Pip tells Biscuit everything, all of it, at once, in order."],
+        [N,"It hurts. That is the part Hale couldn't write: it hurts, and it is worth it, and the town chooses the hurt together, out loud, in colour."],
+        [N,"You are still the postman. There will still be letters. But never again an empty shelf in the dark. Ashmere remembers itself now — and so, at last, do you get to simply live in it."]
+      ],
+      ending_keep:[
+        [N,"The slot takes the letter with a small, final sound, like a period at the end of a sentence someone else will finish."],
+        [N,"Ashmere does not wake all at once. It wakes the way it fell asleep: gradually, kindly, a door at a time. Some things stay forgotten. Some graves stay unvisited. The town is smaller than it was — and entirely, defiantly itself."],
+        [N,"Tomorrow you will walk the route. Maren will need the cardamom again by Thursday; Soren will need the sea on rough mornings; that is not a failure of the cure. That IS the cure. A town is a story its people tell each other — and you are the one who keeps them telling it."],
+        [N,"Years from now, a new postman will find a note pinned in the cellar, in handwriting they almost recognise. It will say: the route holds. Walk it kindly."],
+        [N,"But that is years from now. Today there is bread at four, a chime at half past six, and a dog named Biscuit who answers when called."]
+      ],
+      ending_chest:[
+        [N,"Bram rows out at slack water with the whole town watching from the shore — nobody told them to come; Ashmere simply knew, the way it used to know things. The chest comes up green, barnacled, and heavier than grief: a year of Ashmere, unsaid."],
+        [N,"Ansel stands in the market square, in front of everyone, and says it all — the lamp, the letter, the one dark night — in a voice that shakes for the first three sentences and then, held up by forty neighbours' listening, stops shaking."],
+        [N,"Then the town does the oldest thing it knows. It queues. One by one, forty years of letters are read aloud in the square — apologies, proposals, last words, a recipe for plum jam — until the light goes and Marta lights the lamps and they read on by lamplight, because some things, once started, are not stopping for something as small as night."],
+        [N,"You deliver the last one yourself, at midnight, to an empty cottage on Church Row. You knock anyway. Some addresses outlast their people, and the route honours them anyway."],
+        [N,"The Drift does not lift like weather. It lifts like a held breath, let go by two hundred people at once. Ashmere remembers — not everything, not forever, but together, out loud, from the beginning. And that, it turns out, was the delivery all along."]
+      ]
+    };
+    /* ambient talk lines per NPC / state */
+    function ambientLines(npcId){
+      const S=GAME.state;
+      const d={};
+      d.maren_new=[["maren","The ovens are warm and I don't know why. Do you know why ovens are warm, postman? ...Sorry. Sorry. You have kind eyes. I think I'd remember kind eyes."]];
+      d.maren_done=[["maren","Two spoons! Buns at four — Wren says hello, by which I mean she doesn't, but the recipe does, which is better than nothing and worse than her. Eat one. You walk too thin."]];
+      d.soren_new=[["soren","Postman. Is there... weather, usually? I look out and it's all one colour and I think: a man I used to be would have an opinion about that sky."]];
+      d.soren_done=[["soren","Day forty-one off Harrow Point! I tell the gulls every morning. The gulls are sick of it. The gulls can swim home, is what I say."]];
+      d.pip_new=[["pip","There's a dog at our house and he KNOWS things about me that I don't. It's not fair. Dogs shouldn't be allowed to be better at remembering than people."]];
+      d.pip_done=[["pip","BISCUIT knows three tricks and one of them is 'wait by the gate for the postman'. He learned it himself. He likes you. He can tell you're a Remembering Person."]];
+      d.greta_new=[["greta","I planted something in the spring. Or I will plant something. The tenses go first, did you know that? Yesterday I weeded a bed of — of green intentions."]];
+      d.greta_done=[["greta","Sunflowers for August, and I talk to them every evening, and they ARE better listeners than Tomas and he was devoted practice. Look at the red on those hollyhocks. Look at it. Nine years it waited in the ground of that letter."]];
+      d.elio_new=[["elio","I wind it every night. Half past six, it says, forever. A stopped clock is a liar twice a day — that's mine, I think. It sounds like mine. I hope it's mine."]];
+      d.elio_done=[["elio","She calls at half past six. The whole tower rings and I stand in it like a bell myself. Three winters, postman. Never let a letter sit three winters. Promise me on the route."]];
+      d.marta_new=[["marta","Stand up straight, whoever you are. — Oh. Not a pupil. Forgive me. The school is empty and my hands keep… taking a register of nobody. Do you know any children, postman? Are there still children?"]];
+      d.marta_done=[["marta","Forty names, all present. I shall take the register every morning now, out loud, to the empty room — and some mornings, postman, it will not be empty. That's not hope. That's timetable."]];
+      d.bram_new=[["bram","West bank to east bank, two coppers, no parcels after dark and no questions before coffee. That's the whole law of the river. You look like a man carrying questions, postman. The fare is the fare."]];
+      d.bram_done=[["bram","Crossing forty-three this morning: I rowed MYSELF across and sat on the east bank doing nothing, professionally. Petra's orders. A man could get used to being carried."]];
+      d.lottie_new=[["lottie","You're the postman. Lyle says the postman used to come every day.","lyle","Lyle says the postman stopped the winter the river froze, and Lottie says that's a story grandfather told, and I say—","lottie","He says, he says. We remember EVERYTHING, postman, we just can't agree on any of it, which grandfather said is the same as forgetting, only louder."]];
+      d.lottie_done=[["lottie","The sweet ones by the wall! We picked six baskets and argued about the song in four-part harmony.","lyle","Two-part. It was two-part harmony and one part shouting.","lottie","FOUR-part, Lyle."]];
+      d.lyle_new=d.lottie_new; d.lyle_done=d.lottie_done;
+      d.ansel_new=[["ansel","Mill's closed to visitors. Weights are on the board, prices are on the board, my whole life is on that board and none of it is your— …Forgotten breakfast again. Forgotten the lot, me. Grey as the rest. Off you go, postman."]];
+      d.ansel_done=S.confessSeen
+        ? [["ansel","Postman. Jude. I said a true thing in this town for the first time in forty years today, and the sky did not fall. The flour, however, still needs weighing. Some sacraments are daily."]]
+        : [["ansel","You read a guild letter and my hands gave me away in one sentence. Forty years of perfect flour weights, postman. A man is his measures. Leave an old liar to his mill."]];
+      const st = S.delivered[npcId] ? (S.fading[npcId]?"fade":"done") : "new";
+      if(S.fading[npcId]&&SCENES["reanchor_"+npcId]) return SCENES["reanchor_"+npcId];
+      return d[npcId+"_"+(st==="fade"?"new":st)] || d[npcId+"_new"];
+    }
+
+    /* ---------------- game state ---------------- */
+    const canvas=$("game"), ctx=canvas.getContext("2d");
+    let VW=0,VH=0,DPR=1;
+    const COARSE=!!(window.matchMedia&&window.matchMedia("(pointer:coarse)").matches);
+    function resize(){
+      DPR=Math.min(window.devicePixelRatio||1, COARSE?1.5:2);
+      VW=window.innerWidth; VH=window.innerHeight;
+      canvas.width=Math.round(VW*DPR); canvas.height=Math.round(VH*DPR);
+    }
+    window.addEventListener("resize",resize);
+    window.addEventListener("orientationchange",resize);
+    if(window.visualViewport) window.visualViewport.addEventListener("resize",resize);
+    resize();
+
+    const GAME={
+      started:false, over:false,
+      scene:"town", /* town | basement | lighthouse */
+      time:0, duskSm:0.14,
+      state:null,
+      player:{x:430,y:800,vx:0,vy:0,dir:1,walk:0,moving:false},
+      cam:{x:0,y:0},
+      particles:[], petals:[], blooms:[], fireflies:[],
+      keys:{}, joy:{active:false,id:null,ox:0,oy:0,dx:0,dy:0},
+      dlg:{open:false,lines:[],idx:0,char:0,onDone:null,typing:false},
+      toastTimer:null, startStamp:0,
+      basementPos:{x:450,y:480},
+      boatSide:"west", cross:null, /* {t,from,to} */
+      sort:{open:false,queue:[],idx:0,correct:0},
+      mend:{open:false,letter:null,picked:[]}
+    };
+    function freshState(){
+      return {
+        day:1, phase:0, /* 0 Morning 1 Midday 2 Dusk */
+        satchel:["L_baker","L_sailor","L_pip"],
+        delivered:{}, deliveredLetters:{}, readYou:false,
+        tracked:"L_baker",
+        fragments:{}, fragCount:0,
+        scraps:{}, mended:{},
+        hearts:{maren:0,soren:0,pip:0,greta:0,elio:0,marta:0,bram:0,twins:0,ansel:0},
+        points:0, rank:0, totalSortCorrect:0, sortDone:false,
+        fading:{}, basementSeen:false, basementHintGiven:false, tunnelsSeen:false, ledgerSeen:false,
+        plateSeen:false, confessSeen:false, chestUnlocked:false, crossedRiver:false,
+        sideDone:0, nooks:{}, millStoreSeen:false, lampRoomSeen:false,
+        day2OneDone:false, finalChoiceReady:false,
+        restReady:false, lettersDelivered:0
+      };
+    }
+    GAME.state=freshState();
+    window.LP={GAME,SCENES,LETTERS};
+
+    /* ---------------- points, ranks, hearts ---------------- */
+    function addPoints(n,why){
+      const S=GAME.state;
+      S.points+=n;
+      let r=0; for(let i=0;i<RANKS.length;i++) if(S.points>=RANKS[i].p) r=i;
+      if(r>S.rank){
+        S.rank=r; AudioSys.fanfare();
+        toast("The office promotes you: "+RANKS[r].n+". "+(why||""),"Postman rank — "+S.points+" route points");
+      }
+      $("rankName").textContent=RANKS[S.rank].n;
+      $("rankPts").textContent=S.points;
+    }
+    function addHeart(key,n){
+      const S=GAME.state;
+      S.hearts[key]=clamp((S.hearts[key]||0)+(n||1),0,3);
+    }
+    function advancePhase(){
+      const S=GAME.state;
+      if(S.phase<2){ S.phase++; }
+      setObjective();
+    }
+    const PHASE_NAMES=["Morning","Midday","Dusk"];
+
+    /* ---------------- input ---------------- */
+    window.addEventListener("keydown",e=>{
+      if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"," "].includes(e.key)) e.preventDefault();
+      GAME.keys[e.key.toLowerCase()]=true;
+      if(e.key.toLowerCase()==="e"||e.key===" "||e.key==="Enter") onInteractKey();
+      if(e.key.toLowerCase()==="b") toggleSatchel();
+      if(e.key.toLowerCase()==="m") toggleMute();
+    });
+    window.addEventListener("keyup",e=>{ GAME.keys[e.key.toLowerCase()]=false; });
+    const stage=$("stage");
+    const joyEl=$("joy"), knobEl=$("joyKnob");
+    const JOY_R=48, JOY_DEAD=7;
+    function joyKnobTo(dx,dy){ knobEl.style.transform="translate(calc(-50% + "+dx+"px), calc(-50% + "+dy+"px))"; }
+    function joyReset(){
+      GAME.joy.active=false; GAME.joy.id=null; GAME.joy.dx=0; GAME.joy.dy=0;
+      joyEl.style.display="none"; joyKnobTo(0,0);
+    }
+    stage.addEventListener("pointerdown",e=>{
+      AudioSys.init(); AudioSys.resume();
+      if(e.pointerType==="touch"||e.pointerType==="pen"){ document.body.classList.add("touch"); }
+      const onUI=e.target.closest("#hudBtns")||e.target.closest("#btnAct")||e.target.closest(".gpanel")||e.target.closest(".overlay")||e.target.closest("#dlg");
+      if(GAME.dlg.open){ if(!onUI) advanceDlg(); return; }
+      if(onUI) return;
+      if(!GAME.joy.active){
+        GAME.joy.active=true; GAME.joy.id=e.pointerId; GAME.joy.ox=e.clientX; GAME.joy.oy=e.clientY; GAME.joy.dx=0; GAME.joy.dy=0;
+        /* capture the pointer: the stick keeps tracking even when the thumb
+           slides off the stage or over other UI — the old "dead joystick" bug */
+        try{ stage.setPointerCapture(e.pointerId); }catch(err){}
+        joyEl.style.display="block"; joyEl.style.left=(e.clientX-62)+"px"; joyEl.style.top=(e.clientY-62)+"px";
+        joyKnobTo(0,0);
+      }
+    });
+    stage.addEventListener("pointermove",e=>{
+      if(!GAME.joy.active||e.pointerId!==GAME.joy.id) return;
+      const dx=e.clientX-GAME.joy.ox, dy=e.clientY-GAME.joy.oy;
+      const m=Math.hypot(dx,dy);
+      if(m<JOY_DEAD){ GAME.joy.dx=0; GAME.joy.dy=0; joyKnobTo(0,0); return; }
+      const ux=dx/m, uy=dy/m, cl=Math.min(m,JOY_R);
+      /* analogue magnitude past the dead zone: a small push walks slowly */
+      const mag=clamp((m-JOY_DEAD)/(JOY_R-JOY_DEAD),0,1);
+      GAME.joy.dx=ux*mag; GAME.joy.dy=uy*mag;
+      joyKnobTo(ux*cl,uy*cl);
+    });
+    function joyEnd(e){ if(GAME.joy.active&&e.pointerId===GAME.joy.id) joyReset(); }
+    stage.addEventListener("pointerup",joyEnd);
+    stage.addEventListener("pointercancel",joyEnd);
+    window.addEventListener("blur",joyReset);
+    /* Pull-to-refresh lock — layered, because Android Chrome decides a drag
+       is a refresh at touchstart, before the old touchmove-only guard could
+       ever cancel it:
+       (1) CSS overscroll-behavior:none on html/body/#stage and :contain on
+           the scrollable panels stops the scroll chain reaching the browser;
+       (2) cancelling touchstart anywhere outside panels and controls stops
+           the browser claiming the gesture at all — pointer events, which
+           drive the joystick, dialogue and action button, still fire;
+       (3) cancelling touchmove covers engines that start scrolling anyway;
+       (4) inside a scrollable panel, an edge guard cancels the move exactly
+           when the panel is at its top and the finger drags down (or at its
+           bottom, dragging up), so a panel drag can never chain into a
+           reload either. Panel interiors still scroll normally. */
+    const PTR_OK="button, a, input, select, textarea, label, .letter, .scrim";
+    const PTR_PANEL=".gpanel, #endingScreen";
+    let ptrGuard=null; /* {el, y} while a touch is down inside a panel */
+    document.addEventListener("touchstart",e=>{
+      const t=e.target;
+      const panel=(t&&t.closest)?t.closest(PTR_PANEL):null;
+      ptrGuard=(panel&&e.touches.length)?{el:panel,y:e.touches[0].clientY}:null;
+      if(panel) return;
+      if(t&&t.closest&&t.closest(PTR_OK)) return;
+      e.preventDefault();
+    },{passive:false});
+    document.addEventListener("touchmove",e=>{
+      const t=e.target;
+      const panel=(t&&t.closest)?t.closest(PTR_PANEL):null;
+      if(panel){
+        if(ptrGuard&&ptrGuard.el===panel&&e.touches.length){
+          const y=e.touches[0].clientY, dy=y-ptrGuard.y; ptrGuard.y=y;
+          const atTop=panel.scrollTop<=0;
+          const atBot=panel.scrollTop+panel.clientHeight>=panel.scrollHeight-1;
+          if((atTop&&dy>0)||(atBot&&dy<0)) e.preventDefault();
+        }
+        return;
+      }
+      e.preventDefault();
+    },{passive:false});
+    document.addEventListener("touchend",()=>{ ptrGuard=null; });
+    document.addEventListener("touchcancel",()=>{ ptrGuard=null; });
+    document.addEventListener("gesturestart",e=>e.preventDefault());
+    stage.addEventListener("contextmenu",e=>e.preventDefault());
+    $("btnAct").addEventListener("pointerdown",e=>{ e.stopPropagation(); AudioSys.init(); AudioSys.resume(); onInteractKey(); });
+    $("dlg").addEventListener("pointerdown",e=>{ e.stopPropagation(); advanceDlg(); });
+
+    /* ---------------- dialogue engine ---------------- */
+    const SPEAKERS={narr:{name:"",cls:"narr"},you:{name:"You — Jude, the Last Postman",cls:""}};
+    function speakerOf(key){
+      if(key==="narr") return SPEAKERS.narr;
+      if(key==="you") return SPEAKERS.you;
+      const n=NPCS[key]; return n?{name:n.name+" — "+n.title,cls:""}:{name:key,cls:""};
+    }
+    function openDlg(lines,onDone){
+      GAME.dlg.open=true; GAME.dlg.lines=lines; GAME.dlg.idx=0; GAME.dlg.char=0; GAME.dlg.onDone=onDone||null;
+      $("dlg").classList.add("on"); showDlgLine();
+    }
+    function showDlgLine(){
+      const [who,text]=GAME.dlg.lines[GAME.dlg.idx];
+      const sp=speakerOf(who);
+      const nm=$("dlgName"); nm.textContent=sp.name; nm.className=sp.cls;
+      const tx=$("dlgText"); tx.className=who==="narr"?"narr":""; tx.textContent="";
+      GAME.dlg.char=0; GAME.dlg.typing=true;
+      AudioSys.page();
+    }
+    function advanceDlg(){
+      if(!GAME.dlg.open) return;
+      const [,text]=GAME.dlg.lines[GAME.dlg.idx];
+      if(GAME.dlg.typing){ GAME.dlg.char=text.length; GAME.dlg.typing=false; $("dlgText").textContent=text; return; }
+      GAME.dlg.idx++;
+      if(GAME.dlg.idx>=GAME.dlg.lines.length){
+        GAME.dlg.open=false; $("dlg").classList.remove("on");
+        const cb=GAME.dlg.onDone; GAME.dlg.onDone=null; if(cb) cb();
+      } else showDlgLine();
+    }
+    function tickDlg(dt){
+      if(!GAME.dlg.open||!GAME.dlg.typing) return;
+      const [,text]=GAME.dlg.lines[GAME.dlg.idx];
+      GAME.dlg.char+=dt*46;
+      const n=Math.min(text.length,Math.floor(GAME.dlg.char));
+      $("dlgText").textContent=text.slice(0,n);
+      if(n>=text.length) GAME.dlg.typing=false;
+    }
+
+    /* ---------------- toast ---------------- */
+    function toast(text,sub,ms){
+      $("toastText").textContent=text; $("toastSub").textContent=sub||"";
+      $("toast").classList.add("on");
+      clearTimeout(GAME.toastTimer);
+      GAME.toastTimer=setTimeout(()=>$("toast").classList.remove("on"), ms||4200);
+    }
+
+    /* ---------------- HUD / objective ---------------- */
+    const DAYNAMES={1:"Day One",2:"Day Two",3:"Day Three",4:"Day Four",5:"Day Five"};
+    function anyPanelOpen(){ return satchelOpen||GAME.sort.open||GAME.mend.open; }
+    function setObjective(){
+      const S=GAME.state;
+      let obj="";
+      if(GAME.over) obj="The route is walked. Ashmere remembers.";
+      else if(!S.sortDone) obj="Sort the morning mail at the Post Office table — the heap won't walk itself into bags.";
+      else if(S.day===1){
+        const left=["L_baker","L_sailor","L_pip"].filter(id=>!S.delivered[LETTERS[id].to]);
+        obj = S.restReady ? "All of today's letters are delivered. Return to the Post Office and rest."
+          : left.length? "Deliver today's letters — any order you like. Open your satchel (B) to choose one to follow."
+          : "Return to the Post Office and rest.";
+      } else if(S.day===2){
+        if(S.restReady) obj="The day is carried. Return to the Post Office and rest.";
+        else{
+          const parts=[];
+          if(!S.delivered.greta||!S.delivered.elio) parts.push("Deliver the two old letters from the drawer");
+          if(S.fading.maren) parts.push("Maren is fading — visit the bakery and stand in the memory with her");
+          if(S.fading.soren) parts.push("Soren is fading — visit the harbour");
+          if(!S.basementSeen) parts.push("Something is waiting under the Post Office — check the cellar hatch at its side");
+          if(S.basementSeen&&!S.tunnelsSeen) parts.push("The cellar goes deeper than the shelves — explore the tunnels");
+          obj=parts.join(" · ")||"Return to the Post Office and rest.";
+        }
+      } else if(S.day===3){
+        if(S.restReady) obj="The east bank remembers. Return to the Post Office and rest.";
+        else{
+          const parts=[];
+          if(!S.delivered.marta) parts.push("Deliver the roll book to Marta at the schoolhouse");
+          if(!S.delivered.twins) parts.push("Take Bram's ferry across the river and deliver to the twins at the orchard");
+          if(!S.ledgerSeen) parts.push("Read the last page of the ledger, in the cellar tunnels under the Post Office");
+          if(!S.plateSeen) parts.push("Look closely at the lighthouse door, on the cliff");
+          obj=parts.join(" · ")||"Return to the Post Office and rest.";
+        }
+      } else if(S.day===4){
+        if(S.restReady) obj="The reckoning is done. Return to the Post Office and rest — tomorrow, the letter with your name.";
+        else{
+          const parts=[];
+          if(!S.delivered.bram) parts.push("Deliver Petra's letter to Bram the ferryman");
+          if(!S.delivered.ansel) parts.push("Deliver the guild's letter to Ansel at the Old Mill");
+          if(S.delivered.ansel&&!S.confessSeen) parts.push("Hear Ansel out — he has forty years to say");
+          if(S.fading.greta) parts.push("Greta is fading — the garden needs you");
+          if(S.fading.elio) parts.push("Elio is fading — the tower needs you");
+          const sides=S.satchel.filter(id=>LETTERS[id].side).length;
+          if(sides) parts.push(sides+" optional letter"+(sides>1?"s":"")+" in the satchel, if your heart allows");
+          obj=parts.join(" · ")||"Return to the Post Office and rest.";
+        }
+      } else if(S.day===5){
+        if(!S.readYou) obj="Open your satchel and read the letter addressed to you.";
+        else if(!S.finalChoiceReady) obj="Read the letter. Then decide.";
+        else{
+          const opts=["Light the last letter in the lighthouse lamp — Ashmere remembers everything, forever","or return it, unopened, to the Post Office cellar hatch — and walk the route, kindly, for as long as you can"];
+          if(S.chestUnlocked) opts.splice(1,0,"or go to the pier with Bram and raise the Drowned Chest — begin at the beginning");
+          obj="The last letter. "+opts.join(" · ")+"."+(S.satchel.includes("L_pip2")?" (There's also a small parcel for a dog, if you pass the cottage.)":"");
+        }
+      }
+      $("hudDay").textContent=DAYNAMES[S.day]||"Day One";
+      $("hudPhase").textContent="· "+PHASE_NAMES[S.phase];
+      $("hudObj").textContent=obj;
+      const undeliv=S.satchel.filter(id=>id!=="L_you"||!S.readYou).length;
+      const badge=$("satchelBadge");
+      badge.style.display=undeliv>0?"flex":"none"; badge.textContent=undeliv;
+      $("fragCount").textContent=S.fragCount+" / "+FRAG_TOTAL;
+      $("rankName").textContent=RANKS[S.rank].n;
+      $("rankPts").textContent=S.points;
+    }
+
+    /* ---------------- satchel UI ---------------- */
+    let satchelOpen=false;
+    function toggleSatchel(force){
+      if(GAME.sort.open||GAME.mend.open) return;
+      satchelOpen = force!==undefined?force:!satchelOpen;
+      $("satchel").classList.toggle("on",satchelOpen);
+      $("scrim").classList.toggle("on",satchelOpen||GAME.sort.open||GAME.mend.open);
+      if(satchelOpen) renderSatchel();
+    }
+    $("btnSatchel").addEventListener("click",()=>{ AudioSys.init(); toggleSatchel(); });
+    $("satchelClose").addEventListener("click",()=>toggleSatchel(false));
+    $("scrim").addEventListener("click",()=>{ toggleSatchel(false); });
+    function renderSatchel(){
+      const S=GAME.state, list=$("satchelList"); list.innerHTML="";
+      const ids=S.satchel.slice();
+      const doneIds=Object.keys(LETTERS).filter(id=>S.deliveredLetters[id]&&LETTERS[id].day===S.day&&!ids.includes(id));
+      const all=ids.concat(doneIds);
+      if(!all.length){ list.innerHTML='<div id="satchelEmpty">Empty, for once. The hook by the door can rest.</div>'; }
+      for(const id of all){
+        const L=LETTERS[id], done=!!S.deliveredLetters[id];
+        const div=document.createElement("div");
+        div.className="letter"+(done?" done":(S.tracked===id?" tracked":""))+(L.side?" side":"");
+        let tag="";
+        if(done) tag='<span class="tag doneT">Delivered</span>';
+        else if(id==="L_you") tag='<span class="tag read">Read it</span>';
+        else if(id==="L_final") tag='<span class="tag">Yours to decide</span>';
+        else if(L.side) tag='<span class="tag sideT">Side story — optional</span>';
+        else if(S.tracked===id) tag='<span class="tag">Following</span>';
+        div.innerHTML='<div class="lt">“'+L.title+'”</div><div class="lm">For <b>'+L.addr+'</b><br/>From '+L.from+'<br/><i>'+L.blurb+'</i></div>'+tag;
+        if(!done) div.addEventListener("click",()=>{
+          if(id==="L_you"&&!S.readYou){ toggleSatchel(false); readYouLetter(); return; }
+          if(id==="L_final"){ toggleSatchel(false); toast("It hums, very slightly, like a held note. The lighthouse lamp, the cellar hatch"+(S.chestUnlocked?", or the pier with Bram":"")+" — the choice is the delivery.","The last letter"); return; }
+          S.tracked=id; toggleSatchel(false); setObjective();
+          toast("Following: "+L.title,"For "+L.addr);
+        });
+        list.appendChild(div);
+      }
+      /* mendable torn letters */
+      for(const key of ["A","B"]){
+        const got=SCRAPS.filter(s=>s.letter===key).every(s=>GAME.state.scraps[s.id]);
+        if(got&&!GAME.state.mended[key]){
+          const div=document.createElement("div");
+          div.className="letter";
+          div.innerHTML='<div class="lt">'+TORN[key].title+'</div><div class="lm">All the scraps are gathered. <i>'+TORN[key].hint+'</i></div><span class="tag read">Mend it</span>';
+          div.addEventListener("click",()=>{ toggleSatchel(false); openMend(key); });
+          list.appendChild(div);
+        }
+      }
+      /* hearts */
+      const names={maren:"Maren",soren:"Capt. Soren",pip:"Pip",greta:"Greta",elio:"Elio",marta:"Marta",bram:"Bram",twins:"The Twins",ansel:"Ansel"};
+      $("heartList").innerHTML=Object.keys(names).map(k=>{
+        const h=S.hearts[k]||0;
+        return '<span class="hn">'+names[k]+'</span> <span class="hp">'+"♥".repeat(h)+'<span class="off">'+"♥".repeat(3-h)+"</span></span>";
+      }).join(" &nbsp;·&nbsp; ");
+      /* stamps */
+      $("stampRow").innerHTML=STAMPS.map(st=>{
+        const got=st.test(S);
+        return '<span class="stampChip'+(got?"":" dim")+'">'+st.label+"</span>";
+      }).join("");
+    }
+
+    /* ---------------- sorting mini-game ---------------- */
+    function startSorting(){
+      const S=GAME.state;
+      if(S.sortDone||GAME.over) { setObjective(); return; }
+      const pool=SORT_POOL.slice();
+      const q=[];
+      for(let i=0;i<6;i++){ q.push(pool.splice(Math.floor(rng()*pool.length),1)[0]); }
+      GAME.sort={open:true,queue:q,idx:0,correct:0};
+      $("sortPanel").classList.add("on");
+      $("scrim").classList.add("on");
+      renderSortCard();
+    }
+    function renderSortCard(){
+      const so=GAME.sort;
+      if(so.idx>=so.queue.length){ finishSorting(); return; }
+      const c=so.queue[so.idx];
+      $("sortAddr").textContent="For: "+c.addr;
+      $("sortNote").textContent=c.note;
+      $("sortIdx").textContent=(so.idx+1)+" / "+so.queue.length;
+      $("sortScore").textContent=so.correct;
+      const bins=$("sortBins"); bins.innerHTML="";
+      SORT_BINS.forEach((b,i)=>{
+        const btn=document.createElement("button");
+        btn.className="binBtn"; btn.textContent=b;
+        btn.addEventListener("click",()=>{
+          if(i===c.bin){ so.correct++; btn.classList.add("good"); AudioSys.thock(); }
+          else { btn.classList.add("bad"); AudioSys.tone(160,0.18,"sine",0.06); }
+          setTimeout(()=>{ so.idx++; $("sortScore").textContent=so.correct; renderSortCard(); },340);
+        });
+        bins.appendChild(btn);
+      });
+    }
+    function finishSorting(){
+      const S=GAME.state, so=GAME.sort;
+      so.open=false; S.sortDone=true;
+      $("sortPanel").classList.remove("on");
+      if(!satchelOpen&&!GAME.mend.open) $("scrim").classList.remove("on");
+      S.totalSortCorrect+=so.correct;
+      if(so.correct>0) addPoints(so.correct*2,"A true sort steadies the whole route.");
+      if(so.idx>0) toast("Morning sort done — "+so.correct+" of "+so.queue.length+" sent true. The bag feels lighter already.","The Morning Sort");
+      setObjective();
+    }
+    $("sortSkip").addEventListener("click",()=>{ if(GAME.sort.open) finishSorting(); });
+
+    /* ---------------- mending puzzle ---------------- */
+    function openMend(key){
+      GAME.mend={open:true,letter:key,picked:[]};
+      $("mendTitle").textContent=TORN[key].title;
+      $("mendPanel").classList.add("on");
+      $("scrim").classList.add("on");
+      renderMend();
+    }
+    function renderMend(){
+      const key=GAME.mend.letter, T=TORN[key];
+      const done=$("mendDone");
+      if(GAME.mend.picked.length===0) done.innerHTML='<span class="ph">The letter, as you mend it, will appear here…</span>';
+      else done.innerHTML=GAME.mend.picked.map(i=>'<span class="placed">'+T.strips[i]+"</span>").join(" ");
+      const wrap=$("mendStrips"); wrap.innerHTML="";
+      const order=T.strips.map((_,i)=>i);
+      /* deterministic shuffle that is never already-solved */
+      for(let i=order.length-1;i>0;i--){ const j=Math.floor(rng()*(i+1)); const t=order[i]; order[i]=order[j]; order[j]=t; }
+      if(order.every((v,i)=>v===i)) order.reverse();
+      for(const i of order){
+        if(GAME.mend.picked.includes(i)) continue;
+        const b=document.createElement("button");
+        b.className="strip"; b.textContent="“"+T.strips[i]+"”";
+        b.addEventListener("click",()=>{
+          const expect=GAME.mend.picked.length;
+          if(i===expect){
+            GAME.mend.picked.push(i); AudioSys.page(); renderMend();
+            if(GAME.mend.picked.length===T.strips.length) setTimeout(()=>finishMend(key),450);
+          } else {
+            b.classList.add("shake"); AudioSys.tone(150,0.15,"sine",0.05);
+            toast("That piece doesn't follow yet. Letters, like memories, have an order.","Mending");
+            setTimeout(()=>b.classList.remove("shake"),320);
+          }
+        });
+        wrap.appendChild(b);
+      }
+    }
+    function finishMend(key){
+      const S=GAME.state;
+      GAME.mend.open=false; S.mended[key]=true; S.sideDone++;
+      $("mendPanel").classList.remove("on");
+      if(!satchelOpen) $("scrim").classList.remove("on");
+      addPoints(10,"Some letters you deliver. This one, you repaired.");
+      AudioSys.chime();
+      advancePhase();
+      openDlg(SCENES[key==="A"?"mendA":"mendB"],()=>setObjective());
+    }
+    $("mendClose").addEventListener("click",()=>{ GAME.mend.open=false; $("mendPanel").classList.remove("on"); if(!satchelOpen) $("scrim").classList.remove("on"); });
+
+    /* ---------------- sound toggle ---------------- */
+    function toggleMute(){
+      AudioSys.init();
+      AudioSys.setMuted(!AudioSys.muted);
+      $("icoSndOn").style.display=AudioSys.muted?"none":"block";
+      $("icoSndOff").style.display=AudioSys.muted?"block":"none";
+    }
+    $("btnSound").addEventListener("click",toggleMute);
+
+    /* ---------------- interactions ---------------- */
+    const HATCH={x:545,y:700};
+    const LEDGER={x:1260,y:190};
+    const NOOKS=[
+      {id:"tree",x:2900,y:500,label:"Look inside the hollow oak",scene:"nook_tree"},
+      {id:"pier",x:905,y:1095,label:"Look under the pier",scene:"nook_pier"},
+      {id:"millrace",x:2465,y:865,label:"Sit by the mill race a moment",scene:"nook_millrace"}
+    ];
+    function npcPosFor(key){
+      if(key==="twins") return NPCS.lottie;
+      return NPCS[key];
+    }
+    function currentInteract(){
+      const S=GAME.state, p=GAME.player;
+      if(GAME.dlg.open||GAME.over||anyPanelOpen()||GAME.cross) return null;
+      if(GAME.scene==="basement"){
+        if(dist(p.x,p.y,450,540)<70) return {label:"Climb back up to the Post Office", act:exitBasement};
+        if(!S.basementSeen && dist(p.x,p.y,450,150)<90) return {label:"Read the note on the last shelf", act:basementScene};
+        if(dist(p.x,p.y,LEDGER.x,LEDGER.y)<80){
+          if(S.day>=3&&!S.ledgerSeen) return {label:"Read the last page of the ledger", act:ledgerScene};
+          return {label:"The office ledger", act:()=>toast(S.ledgerSeen?"'The Drift has a birthday.' You've read it. It doesn't get lighter for being read twice.":"Swollen with damp and forty years of other people's handwriting. Not yet — the day will tell you when.","The ledger")};
+        }
+        if(!S.tunnelsSeen && p.x>900) return {label:"Look around the sorting tunnels", act:tunnelsScene};
+        return null;
+      }
+      if(GAME.scene==="lighthouse"){
+        if(dist(p.x,p.y,260,700)<70) return {label:"Climb back down to the cliff", act:exitLighthouse};
+        if(dist(p.x,p.y,260,150)<90){
+          if(S.day>=5&&S.finalChoiceReady&&S.satchel.includes("L_final"))
+            return {label:"Light the last letter in the lamp", act:()=>ending("light")};
+          if(!S.lampRoomSeen) return {label:"Look at the lamp, and the view", act:lampScene};
+          return {label:"The lamp — cold, patient, enormous", act:()=>toast("Cold for now. Whatever you decide, postman, decide it like a keeper: for the ships, not for yourself.","The lamp")};
+        }
+        return null;
+      }
+      /* NPCs */
+      for(const id in NPCS){
+        const n=NPCS[id];
+        if(dist(p.x,p.y,n.x,n.y)<74){
+          const key=heartKey(id);
+          const letterId=S.satchel.find(l=>LETTERS[l].to===key);
+          if(letterId) return {label:"Knock & deliver to "+n.name, act:()=>deliver(key)};
+          if(id==="ansel"&&S.delivered.ansel&&!S.confessSeen) return {label:"Hear Ansel out", act:anselConfess};
+          if(S.fading[key]) return {label:"Stand with "+n.name.split(" ")[0]+" a while", act:()=>reanchor(key)};
+          return {label:"Talk to "+n.name, act:()=>talkNpc(id)};
+        }
+      }
+      /* ferry docks */
+      if(GAME.boatSide==="west"&&dist(p.x,p.y,DOCK_W.x,DOCK_W.y)<70)
+        return {label:"Take Bram's ferry across the river", act:()=>crossRiver("east")};
+      if(GAME.boatSide==="east"&&dist(p.x,p.y,DOCK_E.x,DOCK_E.y)<70)
+        return {label:"Take the ferry back across the river", act:()=>crossRiver("west")};
+      /* nooks */
+      for(const nk of NOOKS){
+        if(dist(p.x,p.y,nk.x,nk.y)<64&&!S.nooks[nk.id])
+          return {label:nk.label, act:()=>visitNook(nk)};
+      }
+      /* post office door */
+      const po=BUILDINGS[1];
+      if(dist(p.x,p.y,po.x+po.w/2,po.y+po.h+16)<64){
+        if(S.restReady) return {label:"Go in and rest — end the day", act:restDay};
+        return {label:"The Post Office (rest when the day's letters are done)", act:()=>toast("The sorting table is clear. The day isn't done until the satchel is.","The Post Office")};
+      }
+      /* cellar hatch */
+      if(dist(p.x,p.y,HATCH.x,HATCH.y)<60){
+        if(S.day>=5&&S.finalChoiceReady&&S.satchel.includes("L_final"))
+          return {label:"Return the last letter, unopened", act:()=>ending("keep")};
+        if(S.day>=2) return {label:"Open the cellar hatch", act:enterBasement};
+        return {label:"A cellar hatch — rusted shut, for now", act:()=>toast("Rusted shut. Whatever's under the Post Office has been waiting a long time. It can wait one more day.","The cellar hatch")};
+      }
+      /* lighthouse door — opens at dusk, or any time on the last day */
+      const lh=BUILDINGS[6];
+      if(dist(p.x,p.y,lh.x+lh.w/2,lh.y+lh.h+16)<76){
+        if(S.day>=5&&S.finalChoiceReady&&S.satchel.includes("L_final"))
+          return {label:"Light the last letter in the lamp", act:()=>ending("light")};
+        if(S.phase>=2||S.day>=5) return {label:"Climb the lighthouse (the stair is unbarred)", act:enterLighthouse};
+        if(!S.plateSeen&&S.day>=3) return {label:"Read the maker's plate on the lamp-room door", act:plateScene};
+        return {label:"The Lighthouse — the stair is barred until dusk", act:()=>openDlg([[N,"The lamp-room stair is barred, the way it always is before dusk — keepers' hours. Come back when the light goes amber. For now the plate on the door catches what sun there is: VANE & SON, KEEPERS."]])};
+      }
+      /* the pier: raising the chest, on the last day */
+      if(S.day>=5&&S.finalChoiceReady&&S.chestUnlocked&&dist(p.x,p.y,905,1300)<110)
+        return {label:"Row out with Bram and raise the Drowned Chest", act:()=>ending("chest")};
+      /* schoolhouse door — mornings only */
+      const sch=BUILDINGS.find(b=>b.id==="school");
+      if(dist(p.x,p.y,sch.x+sch.w/2,sch.y+sch.h+16)<64){
+        if(S.phase===0) return {label:"The schoolhouse door (morning hours)", act:()=>{ if(!S.nooks.school){ S.nooks.school=true; openDlg(SCENES.school_door,()=>addPoints(4)); } else toast("Locked again by noon. Marta keeps hours the Drift never ate.","The schoolhouse"); }};
+        return {label:"The schoolhouse door — locked till morning", act:()=>toast("Locked at noon sharp, forty years of habit. The bell, however, remembers being rung, and says so faintly when the wind is right.","The schoolhouse")};
+      }
+      /* mill store — midday only */
+      const mill=BUILDINGS.find(b=>b.id==="mill");
+      if(dist(p.x,p.y,mill.x+mill.w/2,mill.y+mill.h+16)<64){
+        if(S.phase===1) return {label:"The mill store (midday hours)", act:()=>{ if(!S.millStoreSeen){ S.millStoreSeen=true; openDlg(SCENES.mill_store,()=>addPoints(4)); } else toast("Sacks in rows. A scale that has never once lied. Nothing more to buy here but flour and honesty.","The mill store"); }};
+        return {label:"The mill store — open at midday only", act:()=>toast("Ansel keeps hours the way he keeps weights: exactly. The store opens at midday. Not before, not after, not for postmen.","The Old Mill")};
+      }
+      return null;
+    }
+    function onInteractKey(){
+      if(GAME.dlg.open){ advanceDlg(); return; }
+      if(!GAME.started||GAME.over) return;
+      const it=currentInteract();
+      if(it){ AudioSys.knock(); it.act(); }
+    }
+    function talkNpc(id){ openDlg(ambientLines(id)); }
+    function deliver(key){
+      const S=GAME.state;
+      const lid=S.satchel.find(l=>LETTERS[l].to===key);
+      if(!lid) return;
+      const sceneKey=LETTER_SCENE[lid]||("deliver_"+key);
+      openDlg(SCENES[sceneKey],()=>{
+        S.satchel=S.satchel.filter(x=>x!==lid);
+        S.delivered[key]=true; S.deliveredLetters[lid]=true; S.lettersDelivered++;
+        const L=LETTERS[lid];
+        if(L.side){ S.sideDone++; }
+        addHeart(key,1);
+        addPoints(L.side?10:12);
+        const pos=npcPosFor(key);
+        const z=ZONES[pos.zone]; z.target=1;
+        bloom(pos.x,pos.y-20,pos.zone);
+        AudioSys.chime();
+        toast("“"+L.title+"” — delivered.","Ashmere remembers a little more");
+        if(S.tracked===lid){ const nxt=S.satchel.find(x=>x!=="L_you"&&x!=="L_final"); S.tracked=nxt||null; }
+        advancePhase();
+        afterDelivery();
+        setObjective();
+      });
+    }
+    function afterDelivery(){
+      const S=GAME.state;
+      if(S.day===1){
+        if(["maren","soren","pip"].every(id=>S.delivered[id])){ S.restReady=true; toast("That's the route. Head back to the Post Office and rest.","Day One — carried"); }
+      }
+      if(S.day===2){
+        if(S.delivered.greta&&S.delivered.elio&&S.basementSeen&&!S.fading.maren&&!S.fading.soren) S.restReady=true;
+        if(S.delivered.greta&&S.delivered.elio&&!S.basementSeen)
+          toast("Both letters carried. But something under the Post Office has been scratching at the hatch all day…","The cellar hatch, at the side of the Post Office");
+      }
+      if(S.day===3){
+        if(S.delivered.marta&&S.delivered.twins&&S.ledgerSeen) S.restReady=true;
+      }
+      if(S.day===4){
+        if(S.delivered.bram&&S.delivered.ansel&&S.confessSeen) S.restReady=true;
+        if(S.delivered.ansel&&!S.confessSeen)
+          toast("Ansel is standing very still among his sacks, like a man who has just heard his own name. Go back. Hear him out.","The miller has more to say");
+      }
+      checkDay2Fading();
+    }
+    function checkDay2Fading(){
+      const S=GAME.state;
+      if(S.day!==2||!S.basementSeen||S.fading.maren) return;
+      if(S.delivered.greta&&S.delivered.elio){
+        S.fading.maren=true; S.fading.soren=true;
+        ZONES.bakery.target=0.45; ZONES.harbor.target=0.45;
+        openDlg(SCENES.fading,()=>setObjective());
+      }
+    }
+    function reanchor(key){
+      const S=GAME.state;
+      openDlg(SCENES["reanchor_"+key]||ambientLines(key),()=>{
+        S.fading[key]=false;
+        addHeart(key,1); addPoints(5);
+        ZONES[npcPosFor(key).zone].target=0.9;
+        bloom(npcPosFor(key).x,npcPosFor(key).y-20,npcPosFor(key).zone);
+        AudioSys.chime();
+        toast(npcPosFor(key).name.split(" ")[0]+" remembers — for now. That will have to be enough. It is enough.","Re-anchored");
+        advancePhase();
+        if(S.day===2&&S.delivered.greta&&S.delivered.elio&&S.basementSeen&&!S.fading.maren&&!S.fading.soren) S.restReady=true;
+        setObjective();
+      });
+    }
+    function anselConfess(){
+      const S=GAME.state;
+      openDlg(SCENES.ansel_confess,()=>{
+        S.confessSeen=true; S.chestUnlocked=true;
+        addHeart("ansel",1); addPoints(8,"Forty years of silence, ended by listening.");
+        ZONES.mill.target=1; bloom(NPCS.ansel.x,NPCS.ansel.y-20,"mill");
+        toast("Ansel Vane has told the truth. On the last day, if you read Hale's letter and choose it, Bram can row you out to raise the Drowned Chest.","The third way is open");
+        if(S.delivered.bram&&S.delivered.ansel) S.restReady=true;
+        setObjective();
+      });
+    }
+    function crossRiver(dir){
+      const S=GAME.state;
+      AudioSys.splash();
+      if(!S.crossedRiver){ S.crossedRiver=true; addPoints(4); }
+      const from=dir==="east"?{x:DOCK_W.x,y:DOCK_W.y+26}:{x:DOCK_E.x,y:DOCK_E.y+26};
+      const to=dir==="east"?{x:DOCK_E.x,y:DOCK_E.y+26}:{x:DOCK_W.x,y:DOCK_W.y+26};
+      GAME.player.x=from.x; GAME.player.y=from.y;
+      GAME.cross={t:0,from,to,dir};
+      GAME.boatSide=dir;
+      if(dir==="east"&&S.day>=3&&!S.delivered.twins)
+        toast("Bram rows without a word, the way he's rowed everyone for forty years. The east bank is greener in rumour than in fact — for now.","Across the river");
+    }
+    function visitNook(nk){
+      const S=GAME.state;
+      S.nooks[nk.id]=true;
+      openDlg(SCENES[nk.scene],()=>{ addPoints(3); setObjective(); });
+    }
+    function enterBasement(){
+      GAME.scene="basement";
+      GAME.player.x=GAME.basementPos.x; GAME.player.y=GAME.basementPos.y;
+      GAME.cam.x=0; GAME.cam.y=0;
+      AudioSys.page();
+      const S=GAME.state;
+      if(!S.basementSeen&&!S.basementHintGiven){
+        S.basementHintGiven=true;
+        toast("Shelf after shelf of letters. Sorted. Stamped. Never delivered.","Under the Post Office");
+      }
+    }
+    function exitBasement(){
+      GAME.scene="town";
+      GAME.player.x=HATCH.x+10; GAME.player.y=HATCH.y+52;
+    }
+    function basementScene(){
+      const S=GAME.state;
+      openDlg(SCENES.basement,()=>{
+        S.basementSeen=true;
+        setObjective(); checkDay2Fading();
+      });
+    }
+    function tunnelsScene(){
+      const S=GAME.state;
+      S.tunnelsSeen=true;
+      openDlg(SCENES.tunnels,()=>setObjective());
+    }
+    function ledgerScene(){
+      const S=GAME.state;
+      openDlg(SCENES.ledger,()=>{
+        S.ledgerSeen=true; addPoints(6);
+        if(S.day===3&&S.delivered.marta&&S.delivered.twins) S.restReady=true;
+        toast("The Drift has a birthday, a name, and a chest at the bottom of the sea's memory. Read the maker's plate at the lighthouse next.","The ledger — last page");
+        setObjective();
+      });
+    }
+    function plateScene(){
+      const S=GAME.state;
+      openDlg(SCENES.keeper_plate,()=>{
+        S.plateSeen=true; addPoints(4);
+        setObjective();
+      });
+    }
+    function enterLighthouse(){
+      GAME.scene="lighthouse";
+      GAME.player.x=260; GAME.player.y=690;
+      AudioSys.page();
+    }
+    function exitLighthouse(){
+      const lh=BUILDINGS[6];
+      GAME.scene="town";
+      GAME.player.x=lh.x+lh.w/2; GAME.player.y=lh.y+lh.h+30;
+    }
+    function lampScene(){
+      const S=GAME.state;
+      S.lampRoomSeen=true;
+      openDlg(SCENES.lighthouse_top,()=>setObjective());
+    }
+    function readYouLetter(){
+      const S=GAME.state;
+      openDlg(SCENES.read_you,()=>{
+        S.readYou=true; S.finalChoiceReady=true;
+        S.satchel=S.satchel.filter(x=>x!=="L_you");
+        if(!S.satchel.includes("L_final")) S.satchel.push("L_final");
+        S.tracked="L_final";
+        toast("The last letter is in your satchel now."+(S.chestUnlocked?" Three ways stand open: the lamp, the hatch — or the pier, and the beginning.":" Lighthouse — or the cellar hatch."),"Day Five — the choice");
+        setObjective();
+      });
+    }
+    function startMorning(cb){
+      const S=GAME.state;
+      S.sortDone=false; S.phase=0;
+      setObjective();
+      if(cb) cb();
+      setTimeout(()=>{ if(GAME.started&&!GAME.over) startSorting(); },600);
+    }
+    function restDay(){
+      const S=GAME.state;
+      fadeTo(()=>{
+        if(S.day===1){
+          openDlg(SCENES.day1_end,()=>{
+            S.day=2; S.restReady=false;
+            S.satchel.push("L_greta","L_elio"); S.tracked="L_greta";
+            showDayCard(2,"The Drawer Opens","Two letters that were never on any cart. And under the Post Office, something patient in the dark.",()=>{
+              openDlg(SCENES.day2_start,()=>startMorning());
+            });
+            setObjective();
+          });
+        } else if(S.day===2){
+          openDlg(SCENES.day2_end,()=>{
+            S.day=3; S.restReady=false;
+            S.satchel.push("L_marta","L_twins"); S.tracked="L_marta";
+            showDayCard(3,"Across the River","A roll book of forty names. A letter to be read in stereo. And under the town, a ledger with a birthday in it.",()=>{
+              openDlg(SCENES.day3_start,()=>startMorning());
+            });
+            setObjective();
+          });
+        } else if(S.day===3){
+          openDlg(SCENES.day3_end,()=>{
+            S.day=4; S.restReady=false;
+            S.fading.greta=true; S.fading.elio=true;
+            ZONES.garden.target=0.45; ZONES.tower.target=0.45;
+            S.satchel.push("L_bram","L_ansel","L_maren2","L_soren2"); S.tracked="L_bram";
+            showDayCard(4,"The Reckoning","The ferryman who is carried by no one. The miller whose hands never forgot. And the town, writing back.",()=>{
+              openDlg(SCENES.day4_start,()=>{
+                toast("Greta and Elio are fading again — the garden and the tower could use you, when you can.","The Drift presses on");
+                startMorning();
+              });
+            });
+            setObjective();
+          });
+        } else if(S.day===4){
+          openDlg(SCENES.day4_end,()=>{
+            S.day=5; S.restReady=false;
+            S.satchel.push("L_you","L_pip2"); S.tracked="L_you";
+            showDayCard(5,"The Letter With Your Name","One letter left in all of Ashmere, and it is addressed to the postman.",()=>{
+              openDlg(SCENES.day5_start,()=>startMorning());
+            });
+            setObjective();
+          });
+        }
+      });
+    }
+    function fadeTo(cb){
+      const f=$("fadeBlack"); f.style.opacity="1";
+      setTimeout(()=>{ cb(); setTimeout(()=>{ f.style.opacity="0"; },350); },850);
+    }
+    function showDayCard(day,title,text,cb){
+      $("dayCardNum").textContent=DAYNAMES[day];
+      $("dayCardTitle").textContent=title;
+      $("dayCardText").textContent=text;
+      const card=$("dayCard"); card.classList.add("on");
+      GAME.player.x=430; GAME.player.y=800;
+      GAME.boatSide="west"; /* Bram rows the ferry home overnight, whatever bank you left it on */
+      setTimeout(()=>{ card.classList.remove("on"); if(cb) cb(); },3000);
+    }
+    function ending(kind){
+      const S=GAME.state;
+      S.satchel=S.satchel.filter(x=>x!=="L_final");
+      if(kind==="light"){ for(const k in ZONES) ZONES[k].target=1; }
+      if(kind==="chest"){ for(const k in ZONES) ZONES[k].target=Math.max(ZONES[k].target,0.9); }
+      const sceneKey=kind==="light"?"ending_light":kind==="chest"?"ending_chest":"ending_keep";
+      fadeTo(()=>{
+        /* epilogue variations: what you gathered changes what the town can say */
+        const lines=SCENES[sceneKey].slice();
+        const heartsTotal=Object.keys(S.hearts).reduce((a,k)=>a+S.hearts[k],0);
+        if(S.fragCount>=16) lines.push([N,"And in the days after, the fragments come home: buttons, ribbons, watch-hands, lists — twenty small proofs that Ashmere was loved in detail, returned to the hands that lost them. Nothing is too small to be a memory. That was the whole lesson, carried in pieces."]);
+        else if(S.fragCount>=8) lines.push([N,"Some fragments stay lost — a button here, a ribbon there, sleeping in the grass for another postman. Ashmere decides it can live with a few mysteries. A town, like a letter, doesn't have to say everything to say enough."]);
+        if(S.sideDone>=3) lines.push([N,"Because you also carried the second letters — the ones nobody required — Wren comes home to an aired bed, a whale gets her due in chalk a foot high, and a dog has a birthday the whole street attends. Side stories, the town agrees, are where the living gets done."]);
+        if(S.mended.A) lines.push([N,"And on the first evening, at the lamp, a letter forty years late is read aloud to the sea: light it for the living. E. Vane is, at last, delivered."]);
+        if(S.mended.B) lines.push([N,"In your pocket, a mended page rides against your heart: Jude Amos, who learned a whole town so none of it could be lost. He is, these days, remembered to himself regularly. By name. By his neighbours, who have started, pointedly, to carry him back."]);
+        if(heartsTotal>=15) lines.push([N,"Ask in Ashmere, afterward, who saved the town, and they will not say the postman. They will say: we did, he just knocked. It is the finest review a route ever got."]);
+        openDlg(lines,()=>{
+          GAME.over=true;
+          const mins=Math.max(1,Math.round((Date.now()-GAME.startStamp)/60000));
+          $("endTitle").textContent=kind==="light"?"The Lighting":kind==="chest"?"The Raising":"The Keeping";
+          $("endText").textContent=kind==="light"
+            ? "You lit the lamp with everything Ashmere ever meant to say, and the town took it all back at once — the weddings and the whale, and the graves too. It hurt. It was worth it. No shelf in the dark will ever fill again."
+            : kind==="chest"
+            ? "You began at the beginning: a chest raised, a confession spoken in the square, a town reading itself back into being by lamplight. Not everything returns. But everything returns together — and nobody in Ashmere has to remember alone again."
+            : "You returned the letter unopened, and chose the route instead: a town remembered kindly, a day at a time, by a postman who shows up. Some things stay forgotten. Everything that matters gets carried.";
+          $("endStats").innerHTML=
+            '<div class="stat"><div class="v">'+S.lettersDelivered+'</div><div class="k">Letters delivered</div></div>'+
+            '<div class="stat"><div class="v">'+S.fragCount+' / '+FRAG_TOTAL+'</div><div class="k">Memory fragments</div></div>'+
+            '<div class="stat"><div class="v">'+heartsTotal+'</div><div class="k">Friendship hearts</div></div>'+
+            '<div class="stat"><div class="v">'+S.sideDone+'</div><div class="k">Side stories</div></div>'+
+            '<div class="stat"><div class="v">'+RANKS[S.rank].n+'</div><div class="k">Final rank</div></div>'+
+            '<div class="stat"><div class="v">'+mins+' min</div><div class="k">On the route</div></div>';
+          $("endingScreen").classList.add("on");
+          setObjective();
+        });
+      });
+      AudioSys.chime();
+    }
+    $("btnAgain").addEventListener("click",()=>{ location.reload(); });
+
+    /* ---------------- particles & blooms ---------------- */
+    function bloom(x,y,zoneKey){
+      const zc={bakery:"#e8b34b",garden:"#7fae4c",tower:"#b48ac2",cottage:"#e88a5c",harbor:"#5c9ac2",postoffice:"#e8b34b",market:"#e88a5c",orchard:"#e86a6a",mill:"#e8c96a"}[zoneKey]||"#e8b34b";
+      for(let i=0;i<42;i++){
+        const a=rng()*6.28, sp=40+rng()*130;
+        GAME.particles.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-40,life:1.4+rng()*0.8,t:0,color:zc,size:2+rng()*3.5,kind:"spark"});
+      }
+      GAME.blooms.push({x,y,r:10,a:0.55});
+    }
+    function initPetals(){
+      GAME.petals=[];
+      const nPet=COARSE?34:60, nFf=COARSE?24:42;
+      for(let i=0;i<nPet;i++) GAME.petals.push({x:rng()*3100-50,y:rng()*1800-50,ph:rng()*6.28,sp:8+rng()*14,sz:2.5+rng()*3.5,rot:rng()*6.28});
+      GAME.fireflies=[];
+      for(let i=0;i<nFf;i++) GAME.fireflies.push({x:80+rng()*2800,y:80+rng()*1500,ph:rng()*6.28,sp:6+rng()*10});
+    }
+    initPetals();
+
+    /* ---------------- movement & collision ---------------- */
+    function isWalkable(x,y){
+      if(GAME.scene==="basement"){
+        const inA=x>60&&x<840&&y>60&&y<560 && !(x>120&&x<800&&y>90&&y<150) && !(x>120&&x<800&&y>250&&y<300);
+        const inCorr=x>=840&&x<1060&&y>272&&y<348;
+        const inB=x>=1060&&x<1460&&y>60&&y<560 && !(x>1100&&x<1420&&y>90&&y<150);
+        return inA||inCorr||inB;
+      }
+      if(GAME.scene==="lighthouse"){
+        return x>40&&x<480&&y>60&&y<720;
+      }
+      if(x<26||y<30||x>WORLD.w-26||y>WORLD.h-20) return false;
+      for(const b of BUILDINGS){ if(x>b.x-8&&x<b.x+b.w+8&&y>b.y-6&&y<b.y+b.h+10) return false; }
+      for(const t of TREES){ if(dist(x,y,t.x,t.y)<16) return false; }
+      for(const t of ORCHARD){ if(dist(x,y,t.x,t.y)<16) return false; }
+      for(const st of STALLS){ if(x>st.x-4&&x<st.x+st.w+4&&y>st.y-4&&y<st.y+st.h+6) return false; }
+      const inPier=x>PIER.x-6&&x<PIER.x+PIER.w+6&&y>PIER.y&&y<PIER.y+PIER.h;
+      const inPoint=(x>POINT.x&&x<RIVER.x)||x>=RIVER.x+RIVER.w;
+      if(y>WATER_Y&&!inPier&&!inPoint) return false;
+      if(x>RIVER.x-4&&x<RIVER.x+RIVER.w+4) return false; /* the river itself: boat or nothing */
+      return true;
+    }
+    let stepAcc=0, dustAcc=0;
+    function updatePlayer(dt){
+      const p=GAME.player;
+      /* ferry crossing animation */
+      if(GAME.cross){
+        const c=GAME.cross; c.t+=dt/1.5;
+        const tt=c.t>=1?1:(1-Math.pow(1-c.t,2));
+        p.x=lerp(c.from.x,c.to.x,tt); p.y=lerp(c.from.y,c.to.y,tt)+Math.sin(c.t*9)*2;
+        p.moving=true; p.walk+=dt*6;
+        if(Math.random()<0.3) GAME.particles.push({x:p.x+(Math.random()*30-15),y:p.y+8,vx:0,vy:-14,life:0.6,t:0,color:"#cfe4ee",size:2,kind:"spark"});
+        if(c.t>=1){ GAME.cross=null; p.moving=false; }
+      }
+      let mx=0,my=0;
+      if(!GAME.cross&&!GAME.dlg.open&&GAME.started&&!GAME.over&&!anyPanelOpen()){
+        if(GAME.keys["w"]||GAME.keys["arrowup"]) my-=1;
+        if(GAME.keys["s"]||GAME.keys["arrowdown"]) my+=1;
+        if(GAME.keys["a"]||GAME.keys["arrowleft"]) mx-=1;
+        if(GAME.keys["d"]||GAME.keys["arrowright"]) mx+=1;
+        if(GAME.joy.active){ mx+=GAME.joy.dx; my+=GAME.joy.dy; }
+      }
+      const m=Math.hypot(mx,my);
+      if(!GAME.cross) p.moving=m>0.12;
+      if(p.moving&&!GAME.cross){
+        mx/=Math.max(1,m); my/=Math.max(1,m);
+        const sp=GAME.scene==="town"?215:185;
+        const nx=p.x+mx*sp*dt, ny=p.y+my*sp*dt;
+        if(isWalkable(nx,p.y)) p.x=nx;
+        if(isWalkable(p.x,ny)) p.y=ny;
+        if(Math.abs(mx)>0.1) p.dir=mx>0?1:-1;
+        p.walk+=dt*9;
+        stepAcc+=dt; if(stepAcc>0.34){ stepAcc=0; AudioSys.step(); }
+        dustAcc+=dt;
+        if(dustAcc>0.16){ dustAcc=0; GAME.particles.push({x:p.x+(Math.random()*10-5),y:p.y+3,vx:-mx*14+(Math.random()*8-4),vy:-8-Math.random()*8,life:0.5,t:0,color:"#c9b48c",size:2.6,kind:"dust"}); }
+      }
+      /* camera — with a gentle lookahead toward the way you're facing */
+      const bounds=GAME.scene==="town"?WORLD:(GAME.scene==="basement"?BASE:LAMP);
+      const tx=clamp(p.x+(p.moving?p.dir*34:0)-VW/2,0,Math.max(0,bounds.w-VW));
+      const ty=clamp(p.y-VH/2,0,Math.max(0,bounds.h-VH));
+      GAME.cam.x=lerp(GAME.cam.x,tx,0.12); GAME.cam.y=lerp(GAME.cam.y,ty,0.12);
+      if(bounds.w<VW) GAME.cam.x=(bounds.w-VW)/2;
+      if(bounds.h<VH) GAME.cam.y=(bounds.h-VH)/2;
+    }
+    function updateWorld(dt){
+      for(const k in ZONES){ const z=ZONES[k]; z.level=lerp(z.level,z.target,dt*0.7); }
+      for(const b of GAME.blooms){ b.r+=dt*260; b.a-=dt*0.4; }
+      GAME.blooms=GAME.blooms.filter(b=>b.a>0);
+      for(const pt of GAME.particles){ pt.t+=dt; pt.x+=pt.vx*dt; pt.y+=pt.vy*dt; pt.vy+=30*dt; pt.vx*=0.985; }
+      GAME.particles=GAME.particles.filter(pt=>pt.t<pt.life);
+      if(GAME.particles.length>260) GAME.particles.splice(0,GAME.particles.length-260);
+      const wc=worldColour();
+      for(const pt of GAME.petals){
+        pt.y+=pt.sp*dt; pt.x+=Math.sin(GAME.time*0.7+pt.ph)*14*dt; pt.rot+=dt*0.6;
+        if(pt.y>WORLD.h+30){ pt.y=-30; pt.x=rng()*WORLD.w; }
+        if(pt.x>WORLD.w+30) pt.x=-30; if(pt.x<-30) pt.x=WORLD.w+30;
+        pt.colour=wc;
+      }
+      for(const ff of GAME.fireflies){
+        ff.x+=Math.sin(GAME.time*0.6+ff.ph)*ff.sp*dt; ff.y+=Math.cos(GAME.time*0.45+ff.ph*1.3)*ff.sp*0.6*dt;
+      }
+      /* dog wander */
+      DOG.ph+=dt;
+      const pipHome=NPCS.pip.home;
+      DOG.x=pipHome.x+44+Math.sin(DOG.ph*0.4)*16;
+      DOG.y=pipHome.y+26+Math.cos(DOG.ph*0.55)*8;
+      /* fragments & scraps */
+      const S=GAME.state, p=GAME.player;
+      FRAGMENTS.forEach((f,i)=>{
+        if(S.fragments[i]||f.where!==GAME.scene) return;
+        if(dist(p.x,p.y,f.x,f.y)<34){
+          S.fragments[i]=true; S.fragCount++; AudioSys.sparkle(); addPoints(2);
+          for(let j=0;j<14;j++){ const a=rng()*6.28; GAME.particles.push({x:f.x,y:f.y,vx:Math.cos(a)*60,vy:Math.sin(a)*60-30,life:0.9,t:0,color:"#e8b34b",size:2.4,kind:"spark"}); }
+          toast(f.text,"Memory fragment — "+S.fragCount+" of "+FRAG_TOTAL,5200);
+          setObjective();
+        }
+      });
+      SCRAPS.forEach(sc=>{
+        if(S.scraps[sc.id]||sc.where!==GAME.scene||S.mended[sc.letter]) return;
+        if(dist(p.x,p.y,sc.x,sc.y)<34){
+          S.scraps[sc.id]=true; AudioSys.sparkle(); addPoints(2);
+          for(let j=0;j<12;j++){ const a=rng()*6.28; GAME.particles.push({x:sc.x,y:sc.y,vx:Math.cos(a)*55,vy:Math.sin(a)*55-25,life:0.9,t:0,color:"#7fb8ad",size:2.2,kind:"spark"}); }
+          const total=SCRAPS.filter(s=>s.letter===sc.letter).length;
+          const got=SCRAPS.filter(s=>s.letter===sc.letter&&S.scraps[s.id]).length;
+          toast(sc.text,"Torn letter "+sc.letter+" — scrap "+got+" of "+total+(got===total?". All pieces found — open the satchel (B) to mend it.":""),5200);
+          setObjective();
+        }
+      });
+      tickDlg(dt);
+    }
+
+    /* ---------------- rendering ---------------- */
+    function rr(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+    function drawBuilding(b,t){
+      const lv=b.zone?ZONES[b.zone].level:worldColour()*0.85;
+      const dusk=duskFactor();
+      ctx.fillStyle="rgba(30,25,18,0.18)"; rr(b.x+7,b.y+9,b.w,b.h,10); ctx.fill();
+      ctx.fillStyle=col(b.wall,lv); rr(b.x,b.y,b.w,b.h,7); ctx.fill();
+      ctx.fillStyle="rgba(255,255,255,0.10)"; rr(b.x,b.y,b.w,b.h*0.4,7); ctx.fill();
+      ctx.fillStyle=col(b.roof,lv);
+      ctx.beginPath();
+      ctx.moveTo(b.x-10,b.y+6); ctx.lineTo(b.x+b.w/2,b.y-34); ctx.lineTo(b.x+b.w+10,b.y+6); ctx.closePath(); ctx.fill();
+      ctx.fillStyle="rgba(0,0,0,0.12)";
+      ctx.beginPath(); ctx.moveTo(b.x+b.w/2,b.y-34); ctx.lineTo(b.x+b.w+10,b.y+6); ctx.lineTo(b.x+b.w/2,b.y+6); ctx.closePath(); ctx.fill();
+      ctx.fillStyle=col("#6b4a33",Math.max(lv,0.25)); rr(b.x+b.w/2-13,b.y+b.h-42,26,42,5); ctx.fill();
+      ctx.fillStyle="#e8b34b"; ctx.beginPath(); ctx.arc(b.x+b.w/2+7,b.y+b.h-20,2.4,0,6.29); ctx.fill();
+      const wins=b.w>150?[-0.3,0.3]:[0];
+      for(const off of wins){
+        const wx=b.x+b.w/2+off*b.w-11, wy=b.y+b.h*0.34;
+        const glow=lv*(0.35+0.65*dusk)*(0.93+0.07*Math.sin(t*6.3+wx*1.7+wy));
+        if(glow>0.06){
+          const gr=ctx.createRadialGradient(wx+11,wy+11,2,wx+11,wy+11,34);
+          gr.addColorStop(0,"rgba(255,180,80,"+(0.5*glow)+")"); gr.addColorStop(1,"rgba(255,180,80,0)");
+          ctx.fillStyle=gr; ctx.fillRect(wx-24,wy-24,70,70);
+        }
+        ctx.fillStyle=glow>0.12?colA("#ffb45c",1,0.35+0.65*glow):col("#5a5f66",lv*0.4);
+        rr(wx,wy,22,22,3); ctx.fill();
+        ctx.strokeStyle="rgba(60,45,30,0.5)"; ctx.lineWidth=2; rr(wx,wy,22,22,3); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(wx+11,wy); ctx.lineTo(wx+11,wy+22); ctx.moveTo(wx,wy+11); ctx.lineTo(wx+22,wy+11);
+        ctx.strokeStyle="rgba(60,45,30,0.35)"; ctx.lineWidth=1.4; ctx.stroke();
+      }
+      if(b.sign){
+        ctx.font="700 12px Nunito, sans-serif"; ctx.textAlign="center";
+        const tw=ctx.measureText(b.sign).width+18;
+        ctx.fillStyle="rgba(43,32,22,0.85)"; rr(b.x+b.w/2-tw/2,b.y+10,tw,20,5); ctx.fill();
+        ctx.fillStyle="#f3ead8"; ctx.fillText(b.sign,b.x+b.w/2,b.y+24.5);
+      }
+      if(b.id==="tower"){
+        const cxp=b.x+b.w/2, cyp=b.y+64;
+        ctx.fillStyle=col("#f3ead8",Math.max(lv,0.3)); ctx.beginPath(); ctx.arc(cxp,cyp,26,0,6.29); ctx.fill();
+        ctx.strokeStyle=col("#5a4632",Math.max(lv,0.4)); ctx.lineWidth=3; ctx.stroke();
+        ctx.strokeStyle="#3a2e20"; ctx.lineWidth=2.6; ctx.beginPath();
+        ctx.moveTo(cxp,cyp); ctx.lineTo(cxp,cyp-16);
+        ctx.moveTo(cxp,cyp); ctx.lineTo(cxp+11,cyp+6); ctx.stroke();
+      }
+      if(b.id==="mill"){
+        /* the great wheel, turning with the river */
+        const wxp=b.x-14, wyp=b.y+b.h*0.55, wr2=44;
+        ctx.save(); ctx.translate(wxp,wyp); ctx.rotate(t*0.5);
+        ctx.strokeStyle=col("#5d4830",Math.max(lv,0.3)); ctx.lineWidth=7;
+        ctx.beginPath(); ctx.arc(0,0,wr2,0,6.29); ctx.stroke();
+        ctx.lineWidth=5;
+        for(let i=0;i<4;i++){ ctx.beginPath(); ctx.moveTo(-wr2,0); ctx.lineTo(wr2,0); ctx.stroke(); ctx.rotate(Math.PI/4); }
+        ctx.restore();
+        ctx.fillStyle=col("#4a3826",Math.max(lv,0.3)); ctx.beginPath(); ctx.arc(wxp,wyp,7,0,6.29); ctx.fill();
+      }
+      if(b.id==="lighthouse"){
+        ctx.fillStyle=colA("#a03d2a",lv,0.85);
+        ctx.fillRect(b.x+8,b.y+58,b.w-16,20); ctx.fillRect(b.x+8,b.y+118,b.w-16,20);
+        const lit=GAME.state&&(GAME.state.day>=5)&&ZONES.harbor.level>0.4;
+        if(lit||duskFactor()>0.5&&lv>0.5){
+          const gr=ctx.createRadialGradient(b.x+b.w/2,b.y-6,4,b.x+b.w/2,b.y-6,120);
+          gr.addColorStop(0,"rgba(255,205,110,0.5)"); gr.addColorStop(1,"rgba(255,205,110,0)");
+          ctx.fillStyle=gr; ctx.fillRect(b.x-110,b.y-120,b.w+220,240);
+          /* slow rotating beam at dusk */
+          if(duskFactor()>0.5){
+            const ba=t*0.35;
+            ctx.save(); ctx.translate(b.x+b.w/2,b.y-8); ctx.rotate(Math.sin(ba)*0.5);
+            const bg=ctx.createLinearGradient(0,0,340,0);
+            bg.addColorStop(0,"rgba(255,214,120,0.20)"); bg.addColorStop(1,"rgba(255,214,120,0)");
+            ctx.fillStyle=bg; ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(340,-34); ctx.lineTo(340,34); ctx.closePath(); ctx.fill();
+            ctx.restore();
+          }
+        }
+        ctx.fillStyle=col("#ffd98a",Math.max(lv,0.35)); rr(b.x+b.w/2-13,b.y-22,26,20,4); ctx.fill();
+      }
+    }
+    function drawTree(t,apples){
+      const lv=clamp(zoneLevelAt(t.x,t.y)*1.15+worldColour()*0.3,0,1);
+      ctx.fillStyle="rgba(30,25,18,0.16)"; ctx.beginPath(); ctx.ellipse(t.x,t.y+16,20*t.s,6*t.s,0,0,6.29); ctx.fill();
+      ctx.fillStyle=col("#6b4a33",lv*0.7); rr(t.x-4*t.s,t.y-2,8*t.s,20*t.s,3); ctx.fill();
+      const sway=Math.sin(GAME.time*0.8+t.ph)*2;
+      const cols=["#5d8a4a","#6f9e52","#87b364"];
+      for(let i=0;i<3;i++){
+        ctx.fillStyle=colA(cols[i],lv,0.9);
+        ctx.beginPath(); ctx.arc(t.x+sway+(i-1)*13*t.s,t.y-20*t.s-(i%2)*9*t.s,(21-i*4)*t.s,0,6.29); ctx.fill();
+      }
+      if(apples&&ZONES.orchard.level>0.25){
+        ctx.fillStyle=colA("#c93a3a",1,ZONES.orchard.level);
+        const pts=[[-12,-26],[8,-34],[16,-16],[-4,-14],[2,-42]];
+        for(const [ax,ay] of pts){ ctx.beginPath(); ctx.arc(t.x+sway+ax*t.s,t.y+ay*t.s,3.1*t.s,0,6.29); ctx.fill(); }
+      }
+    }
+    function drawPerson(x,y,o){
+      const bob=o.moving?Math.sin(o.walk)*2.2:Math.sin(GAME.time*1.6+(o.ph||0))*0.7;
+      const s=o.small?0.72:1;
+      ctx.fillStyle="rgba(30,25,18,0.2)"; ctx.beginPath(); ctx.ellipse(x,y+3,13*s,4.5*s,0,0,6.29); ctx.fill();
+      ctx.fillStyle=col(o.cloth,o.lv);
+      ctx.beginPath();
+      ctx.moveTo(x-11*s,y-2+bob*0.3);
+      ctx.quadraticCurveTo(x-12*s,y-26*s+bob,x,y-28*s+bob);
+      ctx.quadraticCurveTo(x+12*s,y-26*s+bob,x+11*s,y-2+bob*0.3);
+      ctx.closePath(); ctx.fill();
+      if(o.apron){ ctx.fillStyle=colA("#f3ead8",Math.max(o.lv,0.4),0.9); rr(x-7*s,y-20*s+bob,14*s,15*s,3); ctx.fill(); }
+      ctx.fillStyle=o.skin; ctx.beginPath(); ctx.arc(x,y-33*s+bob,9.5*s,0,6.29); ctx.fill();
+      ctx.fillStyle=col(o.hair,o.lv);
+      if(o.style==="bun"){ ctx.beginPath(); ctx.arc(x,y-40*s+bob,6*s,Math.PI,0); ctx.fill(); ctx.beginPath(); ctx.arc(x+6*s,y-43*s+bob,3.4*s,0,6.29); ctx.fill(); }
+      else if(o.style==="beard"){ ctx.beginPath(); ctx.arc(x,y-38*s+bob,7*s,Math.PI,0); ctx.fill(); ctx.fillStyle=col("#d8d4cc",o.lv); ctx.beginPath(); ctx.arc(x,y-27*s+bob,5.5*s,0,Math.PI); ctx.fill(); }
+      else if(o.style==="cap"){ ctx.beginPath(); ctx.arc(x,y-37*s+bob,7.5*s,Math.PI,0); ctx.fill(); ctx.fillRect(x-8*s,y-38*s+bob,16*s,3*s); }
+      else if(o.style==="hat"){ ctx.beginPath(); ctx.arc(x,y-38*s+bob,6.5*s,Math.PI,0); ctx.fill(); ctx.fillRect(x-12*s,y-39*s+bob,24*s,3*s); }
+      else if(o.style==="tall"){ ctx.fillRect(x-6*s,y-52*s+bob,12*s,13*s); ctx.fillRect(x-10*s,y-40*s+bob,20*s,3*s); }
+      else if(o.style==="postcap"){ ctx.beginPath(); ctx.arc(x,y-37*s+bob,7.5*s,Math.PI,0); ctx.fill(); ctx.fillStyle=col("#b4552d",1); ctx.fillRect(x-8*s,y-38*s+bob,16*s,3.2*s); }
+      if(o.satchel){ ctx.fillStyle=col("#8a5a35",1); rr(x+(o.dir>0?6:-15)*s,y-19*s+bob,9.5*s,11*s,2); ctx.fill();
+        ctx.fillStyle="#e8b34b"; ctx.fillRect(x+(o.dir>0?9.5:-11.5)*s,y-14.5*s+bob,2.4*s,2.4*s); }
+      ctx.fillStyle="rgba(40,30,22,0.85)";
+      ctx.beginPath(); ctx.arc(x-3.2*s,y-33*s+bob,1.15*s,0,6.29); ctx.arc(x+3.2*s,y-33*s+bob,1.15*s,0,6.29); ctx.fill();
+    }
+    function drawSparkleAt(x,y,color,i){
+      const pul=0.6+0.4*Math.sin(GAME.time*3+i*1.7);
+      const gr=ctx.createRadialGradient(x,y,1,x,y,20);
+      gr.addColorStop(0,color.replace("A)",(0.65*pul)+")")); gr.addColorStop(1,color.replace("A)","0)"));
+      ctx.fillStyle=gr; ctx.fillRect(x-20,y-20,40,40);
+    }
+    function drawPickups(sceneName){
+      const S=GAME.state;
+      FRAGMENTS.forEach((f,i)=>{
+        if(S.fragments[i]||f.where!==sceneName) return;
+        drawSparkleAt(f.x,f.y,"rgba(255,214,110,A)",i);
+        ctx.fillStyle="#ffd66e"; ctx.save(); ctx.translate(f.x,f.y-4+Math.sin(GAME.time*2+i)*2); ctx.rotate(GAME.time*0.8+i);
+        ctx.fillRect(-1.6,-6,3.2,12); ctx.fillRect(-6,-1.6,12,3.2); ctx.restore();
+      });
+      SCRAPS.forEach((sc,i)=>{
+        if(S.scraps[sc.id]||sc.where!==sceneName||S.mended[sc.letter]) return;
+        drawSparkleAt(sc.x,sc.y,"rgba(127,184,173,A)",i+40);
+        ctx.save(); ctx.translate(sc.x,sc.y-3+Math.sin(GAME.time*2.4+i)*2); ctx.rotate(-0.3+Math.sin(GAME.time+i)*0.15);
+        ctx.fillStyle="#eef3e8"; ctx.fillRect(-8,-6,16,12);
+        ctx.strokeStyle="rgba(63,125,116,0.8)"; ctx.lineWidth=1.2; ctx.strokeRect(-8,-6,16,12);
+        ctx.beginPath(); ctx.moveTo(-8,0); ctx.lineTo(-2,-2); ctx.lineTo(3,2); ctx.lineTo(8,-1); ctx.stroke();
+        ctx.restore();
+      });
+    }
+    function drawBoatAt(x,y,t,lv){
+      ctx.save(); ctx.translate(x,y+Math.sin(t*1.1+x)*3); ctx.rotate(Math.sin(t*0.8+x)*0.02);
+      ctx.fillStyle=col("#7a4a35",Math.max(lv,0.2)); ctx.beginPath();
+      ctx.moveTo(-38,0); ctx.lineTo(38,0); ctx.lineTo(26,16); ctx.lineTo(-26,16); ctx.closePath(); ctx.fill();
+      ctx.fillStyle=col("#5d6e7a",Math.max(lv,0.2)); ctx.fillRect(-2,-34,4,34);
+      ctx.fillStyle=colA("#f3ead8",lv,0.95); ctx.beginPath(); ctx.moveTo(3,-32); ctx.lineTo(26,-4); ctx.lineTo(3,-4); ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+    let SORTED_WORLD=null;
+    function drawTown(){
+      const t=GAME.time;
+      const gl=worldColour();
+      /* only what the camera can see gets drawn — the world is 3000x1700 and
+         a phone viewport shows a small corner of it */
+      const vx0=GAME.cam.x-150, vy0=GAME.cam.y-150, vx1=GAME.cam.x+VW+150, vy1=GAME.cam.y+VH+150;
+      ctx.fillStyle=col("#93a06b",gl*0.9); ctx.fillRect(0,0,WORLD.w,WORLD.h);
+      for(const k in ZONES){ const z=ZONES[k]; if(z.level<0.02) continue;
+        if(z.cx+z.r<vx0||z.cx-z.r>vx1||z.cy+z.r<vy0||z.cy-z.r>vy1) continue;
+        const gr=ctx.createRadialGradient(z.cx,z.cy,10,z.cx,z.cy,z.r);
+        gr.addColorStop(0,colA(ZONE_WASH[k],1,0.30*z.level)); gr.addColorStop(1,colA(ZONE_WASH[k],1,0));
+        ctx.fillStyle=gr; ctx.fillRect(z.cx-z.r,z.cy-z.r,z.r*2,z.r*2);
+      }
+      /* paths */
+      ctx.strokeStyle=col("#c9b48c",gl*0.8); ctx.lineWidth=30; ctx.lineCap="round";
+      ctx.beginPath();
+      ctx.moveTo(430,760); ctx.lineTo(430,470); ctx.lineTo(330,430);
+      ctx.moveTo(430,760); ctx.lineTo(760,760); ctx.lineTo(1150,760); ctx.lineTo(1560,820);
+      ctx.moveTo(760,760); ctx.lineTo(1000,540);
+      ctx.moveTo(1150,760); ctx.lineTo(1400,700); ctx.lineTo(1560,470);
+      ctx.moveTo(760,760); ctx.lineTo(905,1090);
+      ctx.moveTo(1150,760); ctx.lineTo(1150,900);
+      ctx.moveTo(1560,820); ctx.lineTo(1780,1120);
+      ctx.moveTo(1560,820); ctx.lineTo(2050,880); ctx.lineTo(2236,930);
+      ctx.moveTo(2470,930); ctx.lineTo(2560,890); ctx.lineTo(2620,470); ctx.lineTo(2645,360);
+      ctx.moveTo(1900,1330); ctx.lineTo(1980,1560);
+      ctx.stroke();
+      ctx.strokeStyle=colA("#a68d5f",gl*0.7,0.5); ctx.lineWidth=2.4; ctx.setLineDash([14,20]); ctx.stroke(); ctx.setLineDash([]);
+      /* the sea: the bay west of the point (the point itself is cliff land) */
+      const hl=ZONES.harbor.level;
+      ctx.fillStyle=col("#5c8aa8",hl);
+      ctx.fillRect(0,WATER_Y,POINT.x,WORLD.h-WATER_Y);
+      ctx.strokeStyle=colA("#cfe4ee",Math.max(hl,0.25),0.4); ctx.lineWidth=2;
+      for(let i=0;i<26;i++){
+        const wy=WATER_Y+18+((i*53)%480), wx=((i*197)%1560)+Math.sin(t*0.9+i)*22;
+        if(wx<vx0-40||wx>vx1||wy<vy0||wy>vy1) continue;
+        ctx.beginPath(); ctx.moveTo(wx,wy); ctx.quadraticCurveTo(wx+16,wy-4,wx+32,wy); ctx.stroke();
+      }
+      /* the river — animated flow south */
+      ctx.fillStyle=col("#5c8aa8",Math.max(hl,ZONES.mill.level*0.8));
+      ctx.fillRect(RIVER.x,0,RIVER.w,WORLD.h);
+      ctx.strokeStyle=colA("#d8ecf4",0.7,0.45); ctx.lineWidth=2;
+      for(let i=0;i<34;i++){
+        const ry=((i*97 + t*46)%1750)-40, rx=RIVER.x+18+((i*61)%(RIVER.w-52));
+        if(ry<vy0-30||ry>vy1) continue;
+        ctx.beginPath(); ctx.moveTo(rx,ry); ctx.quadraticCurveTo(rx+5,ry+13,rx,ry+27); ctx.stroke();
+      }
+      /* banks & shores */
+      ctx.fillStyle=col("#d8c49a",gl*0.7);
+      ctx.fillRect(0,WATER_Y-8,POINT.x,14);
+      ctx.fillRect(RIVER.x-9,0,10,WORLD.h); ctx.fillRect(RIVER.x+RIVER.w-1,0,10,WORLD.h);
+      ctx.fillRect(POINT.x,WATER_Y-8,RIVER.x-POINT.x,10);
+      /* cliff rocks on the point */
+      ctx.fillStyle=col("#8d8578",gl*0.6);
+      for(const [rx2,ry2,rs] of [[1700,1400,42],[1830,1500,56],[2050,1440,38],[2180,1560,48],[1750,1620,30]]){
+        ctx.beginPath(); ctx.ellipse(rx2,ry2,rs,rs*0.55,0,0,6.29); ctx.fill();
+      }
+      /* pier */
+      ctx.fillStyle=col("#8a6a4a",Math.max(hl,0.2)); ctx.fillRect(PIER.x,PIER.y,PIER.w,PIER.h);
+      ctx.strokeStyle="rgba(50,35,20,0.35)"; ctx.lineWidth=2;
+      for(let y=PIER.y+22;y<PIER.y+PIER.h;y+=26){ ctx.beginPath(); ctx.moveTo(PIER.x,y); ctx.lineTo(PIER.x+PIER.w,y); ctx.stroke(); }
+      /* ferry docks */
+      for(const d of [DOCK_W,DOCK_E]){
+        ctx.fillStyle=col("#8a6a4a",Math.max(hl,0.25)); ctx.fillRect(d.x-26,d.y-8,52,64);
+        ctx.strokeStyle="rgba(50,35,20,0.35)";
+        for(let y=d.y+8;y<d.y+52;y+=14){ ctx.beginPath(); ctx.moveTo(d.x-26,y); ctx.lineTo(d.x+26,y); ctx.stroke(); }
+      }
+      /* boats: the moored harbour boat + the ferry (or the player mid-crossing) */
+      drawBoatAt(800,1245,t,hl);
+      if(!GAME.cross){
+        const bp=GAME.boatSide==="west"?{x:2300,y:946}:{x:2372,y:946};
+        drawBoatAt(bp.x,bp.y,t,Math.max(hl,0.3));
+      } else {
+        drawBoatAt(GAME.player.x,GAME.player.y+16,t,Math.max(hl,0.3));
+      }
+      /* garden plots */
+      for(const pl of PLOTS){
+        if(pl.x+pl.w<vx0||pl.x>vx1||pl.y+pl.h<vy0||pl.y>vy1) continue;
+        ctx.fillStyle=col("#7a5c40",Math.max(ZONES.garden.level,0.15)); rr(pl.x,pl.y,pl.w,pl.h,4); ctx.fill();
+        const glv=ZONES.garden.level;
+        if(glv>0.06){ for(let d=0;d<3;d++){ ctx.fillStyle=colA(pl.hue,1,glv); ctx.beginPath(); ctx.arc(pl.x+9+d*11,pl.y+10+((d*7)%14),3.6,0,6.29); ctx.fill(); } }
+      }
+      /* market stalls */
+      for(const st of STALLS){
+        if(st.x+st.w<vx0||st.x>vx1||st.y+st.h<vy0||st.y>vy1) continue;
+        const lv=ZONES.market.level;
+        ctx.fillStyle=col("#7a5c40",Math.max(lv,0.2)); rr(st.x,st.y+10,st.w,st.h-10,4); ctx.fill();
+        ctx.fillStyle=col(st.awning,Math.max(lv,0.3));
+        ctx.beginPath(); ctx.moveTo(st.x-5,st.y+12); ctx.lineTo(st.x+st.w/2,st.y-8); ctx.lineTo(st.x+st.w+5,st.y+12); ctx.closePath(); ctx.fill();
+        if(lv>0.15){ ctx.fillStyle=colA("#e8b34b",1,lv); for(let d=0;d<3;d++){ ctx.beginPath(); ctx.arc(st.x+14+d*22,st.y+26,4.4,0,6.29); ctx.fill(); } }
+      }
+      /* y-sorted: buildings, trees, orchard — the sort order never changes,
+         so the list is built once, not re-allocated every frame */
+      if(!SORTED_WORLD) SORTED_WORLD=[...BUILDINGS.map(b=>({k:"b",y:b.y+b.h,o:b})),...TREES.map(tr=>({k:"t",y:tr.y,o:tr})),...ORCHARD.map(tr=>({k:"o",y:tr.y,o:tr}))].sort((a,b)=>a.y-b.y);
+      for(const it of SORTED_WORLD){
+        const o=it.o, ow=o.w||44, oh=o.h||44;
+        if(o.x+ow<vx0||o.x>vx1||o.y+oh<vy0||o.y-46>vy1) continue;
+        if(it.k==="b") drawBuilding(o,t); else drawTree(o,it.k==="o");
+      }
+      /* hatch */
+      ctx.fillStyle=col("#5d4a35",0.4); rr(HATCH.x-20,HATCH.y-12,40,24,4); ctx.fill();
+      ctx.strokeStyle="rgba(30,22,14,0.6)"; ctx.lineWidth=2; rr(HATCH.x-20,HATCH.y-12,40,24,4); ctx.stroke();
+      ctx.fillStyle="#e8b34b"; ctx.beginPath(); ctx.arc(HATCH.x,HATCH.y-2,3,0,6.29); ctx.fill();
+      /* hollow oak marker (the nook) */
+      ctx.fillStyle="rgba(30,22,14,0.55)"; ctx.beginPath(); ctx.ellipse(2900,486,10,14,0,0,6.29); ctx.fill();
+      drawPickups("town");
+      /* NPCs */
+      for(const id in NPCS){ const n=NPCS[id];
+        if(n.x<vx0||n.x>vx1||n.y<vy0||n.y>vy1) continue;
+        drawPerson(n.x+Math.sin(t*0.5+n.x)*4,n.y,{cloth:n.cloth,hair:n.hair,skin:n.skin,style:n.style,small:n.small,lv:ZONES[n.zone].level,moving:false,ph:n.x,apron:id==="maren"});
+        const hk=GAME.state.hearts[heartKey(id)]||0;
+        if(hk>0){
+          ctx.font="10px serif"; ctx.textAlign="center";
+          for(let hi=0;hi<3;hi++){
+            ctx.fillStyle=hi<hk?"#e05656":"rgba(243,234,216,0.35)";
+            ctx.fillText("♥",n.x-12+hi*12,n.y-(n.small?52:64)+Math.sin(t*2+n.x+hi)*1.6);
+          }
+        }
+        if(GAME.state.fading[heartKey(id)]){
+          ctx.font="700 12px Nunito"; ctx.textAlign="center"; ctx.fillStyle="rgba(120,125,135,0.95)";
+          ctx.fillText("fading…",n.x,n.y-(n.small?66:78));
+        }
+        ctx.font="700 11px Nunito, sans-serif"; ctx.textAlign="center"; ctx.fillStyle="rgba(35,28,20,0.75)";
+        ctx.fillText(n.name.replace("Captain ",""),n.x,n.y+18);
+      }
+      /* dog */
+      ctx.save(); ctx.translate(DOG.x,DOG.y);
+      ctx.fillStyle="rgba(30,25,18,0.18)"; ctx.beginPath(); ctx.ellipse(0,2,11,3.6,0,0,6.29); ctx.fill();
+      const dlv=ZONES.cottage.level;
+      ctx.fillStyle=col("#c98d54",dlv); rr(-10,-8,19,10,5); ctx.fill();
+      ctx.beginPath(); ctx.arc(10,-8,6,0,6.29); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(7,-13); ctx.lineTo(10,-19); ctx.lineTo(13,-13); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle=col("#c98d54",dlv); ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(-10,-6);
+      ctx.quadraticCurveTo(-16,-10+Math.sin(t*7)*3,-19,-6+Math.sin(t*7)*4); ctx.stroke();
+      ctx.fillStyle="#2b2119"; ctx.beginPath(); ctx.arc(15,-8,1.5,0,6.29); ctx.fill();
+      if(GAME.state.delivered.pip){ ctx.font="11px Nunito"; ctx.fillStyle="#b4552d"; ctx.fillText("BISCUIT",0,-24); }
+      ctx.restore();
+      /* player */
+      const p=GAME.player;
+      drawPerson(p.x,p.y,{cloth:"#4a5a78",hair:"#3f3428",skin:"#f0c49c",style:"postcap",lv:1,moving:p.moving,walk:p.walk,dir:p.dir,satchel:true});
+      /* fireflies at dusk */
+      if(duskFactor()>0.55){
+        for(const ff of GAME.fireflies){
+          if(ff.x<vx0||ff.x>vx1||ff.y<vy0||ff.y>vy1) continue;
+          const a=(duskFactor()-0.5)*1.4*(0.5+0.5*Math.sin(GAME.time*2+ff.ph*3));
+          ctx.fillStyle="rgba(255,230,140,"+(clamp(a,0,0.8)*0.25)+")";
+          ctx.beginPath(); ctx.arc(ff.x,ff.y,5.5,0,6.29); ctx.fill();
+          ctx.fillStyle="rgba(255,236,160,"+clamp(a,0,0.9)+")";
+          ctx.beginPath(); ctx.arc(ff.x,ff.y,2.1,0,6.29); ctx.fill();
+        }
+      }
+      drawPetals();
+      for(const b of GAME.blooms){ ctx.strokeStyle="rgba(255,210,120,"+b.a+")"; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,6.29); ctx.stroke(); }
+      drawParticles();
+      /* drifting cloud shadows */
+      ctx.fillStyle="rgba(40,42,52,0.07)";
+      for(let i=0;i<3;i++){
+        const cx2=((GAME.time*(9+i*4)+i*900)%3600)-300, cy2=240+i*430+Math.sin(GAME.time*0.11+i)*36;
+        if(cx2+300<vx0||cx2-300>vx1||cy2+86<vy0||cy2-86>vy1) continue;
+        ctx.beginPath(); ctx.ellipse(cx2,cy2,300,86,0,0,6.29); ctx.fill();
+      }
+    }
+    function drawBasement(){
+      ctx.fillStyle="#241c14"; ctx.fillRect(0,0,BASE.w,BASE.h);
+      ctx.fillStyle="#33281c"; ctx.fillRect(50,50,790,520);
+      ctx.fillRect(840,272,220,76);           /* tunnel corridor */
+      ctx.fillRect(1060,50,390,520);         /* archive chamber */
+      ctx.strokeStyle="rgba(0,0,0,0.25)"; ctx.lineWidth=2;
+      for(let x=90;x<840;x+=44){ ctx.beginPath(); ctx.moveTo(x,54); ctx.lineTo(x,566); ctx.stroke(); }
+      for(let x=1090;x<1450;x+=44){ ctx.beginPath(); ctx.moveTo(x,54); ctx.lineTo(x,566); ctx.stroke(); }
+      /* tunnel ribs */
+      ctx.strokeStyle="rgba(0,0,0,0.4)"; ctx.lineWidth=6;
+      for(let x=860;x<1060;x+=50){ ctx.beginPath(); ctx.moveTo(x,272); ctx.lineTo(x,348); ctx.stroke(); }
+      /* shelves, chamber A */
+      for(const sy of [90,250]){
+        ctx.fillStyle="#4a3826"; ctx.fillRect(120,sy,660,60);
+        ctx.fillStyle="#5d4830"; ctx.fillRect(120,sy+56,660,8);
+        for(let i=0;i<16;i++){
+          const ex=136+i*40;
+          ctx.fillStyle=colA(["#d9c6a5","#c9b48c","#e3d3ae","#bfae8e"][i%4],0.25,0.95);
+          ctx.fillRect(ex,sy+14,30,40);
+          ctx.strokeStyle="rgba(90,60,30,0.5)"; ctx.lineWidth=1; ctx.strokeRect(ex,sy+14,30,40);
+        }
+      }
+      /* shelves, archive chamber B */
+      ctx.fillStyle="#41321f"; ctx.fillRect(1100,90,320,60);
+      ctx.fillStyle="#5d4830"; ctx.fillRect(1100,146,320,8);
+      for(let i=0;i<8;i++){
+        const ex=1114+i*38;
+        ctx.fillStyle=colA(["#c9b48c","#b7a582","#d9c6a5","#a89a7c"][i%4],0.18,0.95);
+        ctx.fillRect(ex,104,28,40);
+        ctx.strokeStyle="rgba(70,50,25,0.6)"; ctx.lineWidth=1; ctx.strokeRect(ex,104,28,40);
+      }
+      /* stacks of letters on the floor */
+      const lr=mulberry(7);
+      for(let i=0;i<16;i++){
+        const sx=140+lr()*1250, sy2=400+lr()*130;
+        if(sx>820&&sx<1080) continue;
+        ctx.fillStyle=colA("#e8dfc8",0.3,0.9); ctx.fillRect(sx,sy2,34,10);
+        ctx.fillStyle=colA("#d9cbae",0.3,0.9); ctx.fillRect(sx+3,sy2-7,30,9);
+      }
+      /* the sea-chest, in the archive */
+      ctx.fillStyle="#4a3826"; rr(1180,300,120,70,6); ctx.fill();
+      ctx.strokeStyle="#c99a3a"; ctx.lineWidth=3; rr(1180,300,120,70,6); ctx.stroke();
+      ctx.fillStyle="#c99a3a"; ctx.fillRect(1232,300,16,70);
+      ctx.font="700 11px Nunito"; ctx.textAlign="center"; ctx.fillStyle="rgba(243,234,216,0.65)";
+      ctx.fillText("THE SEA-CHEST — unsent, the winter of the big ice",1240,392);
+      /* the note */
+      ctx.fillStyle="#f3ead8"; ctx.fillRect(432,118,36,28);
+      ctx.strokeStyle="#8a6a3a"; ctx.lineWidth=1; ctx.strokeRect(432,118,36,28);
+      ctx.fillStyle="#7a2d20"; ctx.beginPath(); ctx.arc(450,124,3,0,6.29); ctx.fill();
+      ctx.font="700 11px Nunito"; ctx.textAlign="center"; ctx.fillStyle="rgba(243,234,216,0.7)";
+      ctx.fillText("the last shelf",450,168);
+      /* the ledger lectern */
+      ctx.fillStyle="#5d4830"; rr(LEDGER.x-26,LEDGER.y-16,52,34,4); ctx.fill();
+      ctx.fillStyle="#e8dfc8"; ctx.fillRect(LEDGER.x-20,LEDGER.y-22,40,16);
+      ctx.strokeStyle="#8a6a3a"; ctx.lineWidth=1; ctx.strokeRect(LEDGER.x-20,LEDGER.y-22,40,16);
+      ctx.fillStyle="rgba(243,234,216,0.7)"; ctx.fillText("the ledger",LEDGER.x,LEDGER.y+34);
+      /* stairs / exit */
+      ctx.fillStyle="#171008"; ctx.fillRect(400,520,100,50);
+      ctx.fillStyle="rgba(243,234,216,0.75)"; ctx.font="700 12px Nunito"; ctx.fillText("↑ back up",450,550);
+      ctx.fillStyle="rgba(243,234,216,0.5)"; ctx.font="700 11px Nunito"; ctx.fillText("the sorting tunnels →",950,262);
+      /* lamp glow */
+      const gr=ctx.createRadialGradient(GAME.player.x,GAME.player.y-10,20,GAME.player.x,GAME.player.y-10,430);
+      gr.addColorStop(0,"rgba(255,190,100,0.13)"); gr.addColorStop(1,"rgba(0,0,0,0.45)");
+      ctx.fillStyle=gr; ctx.fillRect(0,0,BASE.w,BASE.h);
+      drawPickups("basement");
+      const p=GAME.player;
+      drawPerson(p.x,p.y,{cloth:"#4a5a78",hair:"#3f3428",skin:"#f0c49c",style:"postcap",lv:1,moving:p.moving,walk:p.walk,dir:p.dir,satchel:true});
+      drawParticles();
+    }
+    function drawLighthouseInterior(){
+      ctx.fillStyle="#2a2118"; ctx.fillRect(0,0,LAMP.w,LAMP.h);
+      /* stone wall + stair suggestion */
+      ctx.fillStyle="#3a2e20"; ctx.fillRect(30,30,LAMP.w-60,LAMP.h-60);
+      ctx.strokeStyle="rgba(0,0,0,0.3)"; ctx.lineWidth=2;
+      for(let y=90;y<LAMP.h-60;y+=52){ ctx.beginPath(); ctx.moveTo(34,y); ctx.lineTo(LAMP.w-34,y); ctx.stroke(); }
+      ctx.fillStyle="#4a3a26";
+      for(let i=0;i<9;i++){ ctx.fillRect(400-i*4,640-i*62,90,14); }
+      ctx.font="700 11px Nunito"; ctx.textAlign="center"; ctx.fillStyle="rgba(243,234,216,0.55)";
+      ctx.fillText("one hundred and twelve steps",260,420);
+      /* the lamp */
+      const lit=GAME.state.day>=5&&GAME.state.finalChoiceReady;
+      const cxp=260,cyp=140;
+      if(lit||duskFactor()>0.45){
+        const gr=ctx.createRadialGradient(cxp,cyp,6,cxp,cyp,190);
+        gr.addColorStop(0,"rgba(255,205,110,"+(lit?0.55:0.3)+")"); gr.addColorStop(1,"rgba(255,205,110,0)");
+        ctx.fillStyle=gr; ctx.fillRect(cxp-190,cyp-190,380,380);
+      }
+      ctx.fillStyle=col("#5d6e7a",0.5); rr(cxp-46,cyp+34,92,16,4); ctx.fill();
+      ctx.fillStyle=lit?"#ffd98a":"#8d8578"; rr(cxp-30,cyp-36,60,70,8); ctx.fill();
+      ctx.strokeStyle="#3a2e20"; ctx.lineWidth=3; rr(cxp-30,cyp-36,60,70,8); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cxp,cyp-36); ctx.lineTo(cxp,cyp+34); ctx.stroke();
+      ctx.fillStyle="#3a2e20"; ctx.beginPath(); ctx.arc(cxp,cyp-48,10,0,6.29); ctx.fill();
+      ctx.font="700 12px Nunito"; ctx.fillStyle="rgba(243,234,216,0.75)"; ctx.fillText("THE LAMP",cxp,cyp+74);
+      /* door */
+      ctx.fillStyle="#171008"; ctx.fillRect(215,690,90,42);
+      ctx.fillStyle="rgba(243,234,216,0.75)"; ctx.fillText("↓ the cliff path",260,716);
+      /* window with the whole town below */
+      ctx.fillStyle=colA("#5c8aa8",ZONES.harbor.level,0.85); rr(56,90,86,64,6); ctx.fill();
+      ctx.strokeStyle="#3a2e20"; ctx.lineWidth=3; rr(56,90,86,64,6); ctx.stroke();
+      const gr2=ctx.createRadialGradient(260,380,40,260,380,520);
+      gr2.addColorStop(0,"rgba(255,190,100,0.10)"); gr2.addColorStop(1,"rgba(0,0,0,0.4)");
+      ctx.fillStyle=gr2; ctx.fillRect(0,0,LAMP.w,LAMP.h);
+      drawPickups("lighthouse");
+      const p=GAME.player;
+      drawPerson(p.x,p.y,{cloth:"#4a5a78",hair:"#3f3428",skin:"#f0c49c",style:"postcap",lv:1,moving:p.moving,walk:p.walk,dir:p.dir,satchel:true});
+      drawParticles();
+    }
+    function drawPetals(){
+      for(const pt of GAME.petals){
+        if(pt.x<GAME.cam.x-24||pt.x>GAME.cam.x+VW+24||pt.y<GAME.cam.y-24||pt.y>GAME.cam.y+VH+24) continue;
+        const wc=pt.colour||0;
+        ctx.save(); ctx.translate(pt.x,pt.y); ctx.rotate(pt.rot);
+        ctx.fillStyle=wc>0.25?colA("#e8a0b4",wc,0.75):"rgba(150,148,142,0.55)";
+        ctx.beginPath(); ctx.ellipse(0,0,pt.sz,pt.sz*0.55,0,0,6.29); ctx.fill();
+        ctx.restore();
+      }
+    }
+    function drawParticles(){
+      for(const pt of GAME.particles){
+        const a=1-pt.t/pt.life;
+        if(pt.kind==="dust"){
+          ctx.fillStyle=colA(pt.color,1,a*0.32);
+          ctx.beginPath(); ctx.arc(pt.x,pt.y,pt.size*(1.8-a)+0.6,0,6.29); ctx.fill();
+        } else {
+          ctx.fillStyle=colA(pt.color,1,a*0.9);
+          ctx.beginPath(); ctx.arc(pt.x,pt.y,pt.size*a+0.6,0,6.29); ctx.fill();
+        }
+      }
+    }
+    function duskRaw(){
+      const S=GAME.state;
+      const base=[0.14,0.42,0.88][S.phase]||0.2;
+      return S.day===5?Math.max(base,0.5):base;
+    }
+    /* the light eases between phases instead of snapping (GAME.duskSm is
+       lerped toward duskRaw() every frame in the main loop) */
+    function duskFactor(){ return GAME.duskSm; }
+    function drawTint(){
+      const d=duskFactor(), wc=worldColour();
+      let tint;
+      if(GAME.scene!=="town") tint="rgba(10,6,3,0.22)";
+      else if(d>0.6) tint="rgba(70,40,60,"+(0.10+0.10*wc)+")";
+      else if(d>0.3) tint="rgba(80,55,40,"+(0.07+0.05*wc)+")";
+      else tint="rgba(50,55,70,"+(0.13-0.07*wc)+")";
+      ctx.fillStyle=tint; ctx.fillRect(0,0,VW,VH);
+      if(GAME.scene==="town"&&d>0.4){
+        const gr=ctx.createLinearGradient(0,0,0,VH);
+        gr.addColorStop(0,"rgba(255,150,70,0)"); gr.addColorStop(1,"rgba(255,140,60,"+(0.10*d)+")");
+        ctx.fillStyle=gr; ctx.fillRect(0,0,VW,VH);
+      }
+      /* at dusk the postman carries a little lantern-light of his own */
+      if(GAME.scene==="town"&&d>0.45&&GAME.started){
+        const px=GAME.player.x-GAME.cam.x, py=GAME.player.y-GAME.cam.y-14;
+        const gr2=ctx.createRadialGradient(px,py,10,px,py,240);
+        gr2.addColorStop(0,"rgba(255,186,96,"+(0.14*(d-0.4))+")"); gr2.addColorStop(1,"rgba(255,186,96,0)");
+        ctx.fillStyle=gr2; ctx.fillRect(px-240,py-240,480,480);
+      }
+    }
+    function drawGuide(){
+      const S=GAME.state;
+      if(!S.tracked||GAME.scene!=="town"||GAME.dlg.open||GAME.over) return;
+      const L=LETTERS[S.tracked]; if(!L||!S.satchel.includes(L.id)) return;
+      let tx,ty;
+      if(L.to==="final"){ return; }
+      if(L.to==="you"){ tx=430; ty=740; }
+      else { const n=npcPosFor(L.to); if(!n) return; tx=n.x; ty=n.y; }
+      const sx=tx-GAME.cam.x, sy=ty-GAME.cam.y;
+      if(sx>30&&sx<VW-30&&sy>30&&sy<VH-30){
+        const bobY=Math.sin(GAME.time*3)*4;
+        ctx.save(); ctx.translate(sx,sy-58+bobY);
+        ctx.fillStyle="#b4552d"; rr(-11,-8,22,16,3); ctx.fill();
+        ctx.strokeStyle="#f3ead8"; ctx.lineWidth=1.8; ctx.beginPath(); ctx.moveTo(-11,-8); ctx.lineTo(0,2); ctx.lineTo(11,-8); ctx.stroke();
+        ctx.restore();
+        return;
+      }
+      const cx=VW/2, cy=VH/2;
+      const ang=Math.atan2(sy-cy,sx-cx);
+      const ex=cx+Math.cos(ang)*(Math.min(VW,VH)/2-44), ey=cy+Math.sin(ang)*(Math.min(VW,VH)/2-44);
+      ctx.save(); ctx.translate(ex,ey); ctx.rotate(ang);
+      ctx.fillStyle="rgba(180,85,45,0.92)";
+      ctx.beginPath(); ctx.moveTo(14,0); ctx.lineTo(-8,-9); ctx.lineTo(-4,0); ctx.lineTo(-8,9); ctx.closePath(); ctx.fill();
+      ctx.restore();
+      ctx.font="700 11px Nunito"; ctx.textAlign="center"; ctx.fillStyle="rgba(246,239,221,0.9)";
+      ctx.fillText(L.addr.split(",")[0],ex,ey+26);
+    }
+
+    /* ---------------- prompt UI ---------------- */
+    let _promptLabel=null;
+    function refreshPrompt(){
+      const it=currentInteract();
+      const el=$("prompt");
+      if(it){
+        /* only touch the DOM when the prompt actually changes */
+        if(_promptLabel!==it.label){
+          _promptLabel=it.label;
+          $("promptText").textContent=it.label;
+          $("promptKey").textContent=document.body.classList.contains("touch")?"Tap":"E";
+        }
+        el.classList.add("on");
+        $("btnAct").classList.add("pulse");
+      } else {
+        if(_promptLabel!==null){ _promptLabel=null; el.classList.remove("on"); }
+        $("btnAct").classList.remove("pulse");
+      }
+    }
+
+    /* ---------------- main loop ---------------- */
+    let lastTs=0;
+    function frame(ts){
+      requestAnimationFrame(frame);
+      const dt=Math.min(0.05,(ts-lastTs)/1000||0.016); lastTs=ts;
+      GAME.time+=dt;
+      GAME.duskSm=lerp(GAME.duskSm,duskRaw(),Math.min(1,dt*0.8));
+      if(GAME.started){
+        updatePlayer(dt); updateWorld(dt);
+      } else {
+        /* the title screen breathes: petals drift over the sleeping town */
+        const wc=worldColour();
+        for(const pt of GAME.petals){
+          pt.y+=pt.sp*dt*0.5; pt.x+=Math.sin(GAME.time*0.7+pt.ph)*10*dt; pt.rot+=dt*0.4;
+          if(pt.y>WORLD.h+30){ pt.y=-30; pt.x=rng()*WORLD.w; }
+          pt.colour=wc;
+        }
+      }
+      ctx.setTransform(DPR,0,0,DPR,0,0);
+      ctx.fillStyle="#17140f"; ctx.fillRect(0,0,VW,VH);
+      ctx.save();
+      ctx.translate(-GAME.cam.x,-GAME.cam.y);
+      if(GAME.scene==="town") drawTown();
+      else if(GAME.scene==="basement") drawBasement();
+      else drawLighthouseInterior();
+      ctx.restore();
+      drawTint();
+      if(GAME.scene==="town") drawGuide();
+      if(GAME.started&&!GAME.over) refreshPrompt();
+    }
+    requestAnimationFrame(frame);
+
+    /* ---------------- begin ---------------- */
+    $("btnBegin").addEventListener("click",()=>{
+      AudioSys.init(); AudioSys.resume(); AudioSys.startAmbience();
+      GAME.started=true; GAME.startStamp=Date.now();
+      $("titleScreen").classList.remove("on");
+      GAME.cam.x=clamp(GAME.player.x-VW/2,0,2000); GAME.cam.y=clamp(GAME.player.y-VH/2,0,1000);
+      showDayCard(1,"The Grey Town","Two hundred and eleven people, forgetting politely. Three letters in the satchel. Boots on.",null);
+      setTimeout(()=>{ if(GAME.state.day===1&&!GAME.dlg.open) openDlg(SCENES.intro,()=>startMorning()); },3100);
+      setObjective();
+    });
+    setObjective();
+    </script>
+  </body>
+</html>
